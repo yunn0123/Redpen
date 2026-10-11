@@ -1,4 +1,6 @@
 <!-- Purpose: introduce redpen with a short workflow and real editor examples. -->
+<img src="https://raw.githubusercontent.com/yunn0123/Redpen/main/docs/images/redpen-logo.png" width="96" alt="redpen 紅筆 logo">
+
 # redpen
 
 **拿紅筆批改 AI 的 UI 答卷。**

@@ -15,3 +15,5 @@ package-lock.json
 *.vsix
 ui-feedback.export-*/**
 ui-fix/**
+AGENTS.md
+docs/images/*.prompt.txt

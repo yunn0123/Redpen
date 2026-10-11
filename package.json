@@ -1,8 +1,9 @@
 {
   "name": "ui-feedback",
   "displayName": "redpen",
+  "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "local-tools",
   "license": "MIT",
   "repository": {
