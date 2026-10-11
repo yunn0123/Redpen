@@ -1,0 +1,16 @@
+# Generated bundles, local dependencies, and test artifacts.
+node_modules/
+dist/
+*.vsix
+test-results/
+test-results-native/
+playwright-report/
+.DS_Store
+
+# Private screenshots, feedback exports, and local credentials.
+ui-fix/
+ui-feedback.export-*/
+*.uifeedback.json
+.env
+.env.*
+!.env.example

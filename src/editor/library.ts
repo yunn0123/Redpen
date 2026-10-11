@@ -1,0 +1,38 @@
+/** Small offline catalogs provide searchable UI vocabulary and vector icons without network requests. */
+export const iconLibrary = [
+  { id: "search", name: "搜尋 Search", path: "M10 3a7 7 0 1 0 0 14a7 7 0 0 0 0-14 M15 15l6 6" },
+  { id: "plus", name: "新增 Plus", path: "M12 4v16 M4 12h16" },
+  { id: "check", name: "完成 Check", path: "M4 12l5 5L20 6" },
+  { id: "close", name: "關閉 Close", path: "M5 5l14 14 M19 5L5 19" },
+  { id: "info", name: "資訊 Info", path: "M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20 M12 10v7 M12 6v1" },
+  { id: "warning", name: "警告 Warning", path: "M12 3L2 21h20Z M12 9v5 M12 17v1" },
+  { id: "menu", name: "選單 Menu", path: "M3 5h18 M3 12h18 M3 19h18" },
+  { id: "more", name: "更多 More", path: "M4 11v2 M12 11v2 M20 11v2" },
+  { id: "chevron", name: "展開 Chevron", path: "M5 9l7 7l7-7" },
+  { id: "home", name: "首頁 Home", path: "M2 11L12 2l10 9 M5 9v13h14V9 M9 22v-8h6v8" },
+  { id: "user", name: "使用者 User", path: "M12 2a4 4 0 1 0 0 8a4 4 0 0 0 0-8 M3 22v-3a9 7 0 0 1 18 0v3" },
+  { id: "bell", name: "通知 Bell", path: "M5 17V9a7 7 0 0 1 14 0v8l2 2H3Z M9 22h6" },
+  { id: "heart", name: "喜歡 Heart", path: "M12 21L3 12C-3 4 7-2 12 6C17-2 27 4 21 12Z" },
+  { id: "star", name: "收藏 Star", path: "M12 2l3 7h7l-6 5l2 8l-6-4l-6 4l2-8l-6-5h7Z" },
+  { id: "edit", name: "編輯 Edit", path: "M3 16L17 2l5 5L8 21l-6 1Z M14 5l5 5" },
+  { id: "trash", name: "刪除 Trash", path: "M3 6h18 M9 6V2h6v4 M5 6l1 16h12l1-16 M10 10v8 M14 10v8" },
+  { id: "calendar", name: "日期 Calendar", path: "M3 5h18v17H3Z M3 10h18 M7 2v6 M17 2v6 M7 14h3 M14 14h3 M7 18h3" },
+  { id: "link", name: "連結 Link", path: "M10 7l3-3a5 5 0 0 1 7 7l-3 3 M14 17l-3 3a5 5 0 0 1-7-7l3-3 M8 16l8-8" },
+  { id: "image", name: "圖片 Image", path: "M2 3h20v18H2Z M2 17l6-6l5 5l4-3l5 5 M15 7h2v2h-2Z" },
+  { id: "upload", name: "上傳 Upload", path: "M12 17V2 M6 8l6-6l6 6 M3 16v6h18v-6" },
+];
+
+export const componentLibrary = [
+  { name: "Tooltip", label: "提示文字", description: "懸停或聚焦時顯示補充資訊。", skeleton: '<rect x="25" y="7" width="110" height="28" rx="5"/><path d="m72 35 8 7 8-7M50 21h60"/><rect x="60" y="50" width="40" height="15" rx="4"/>' },
+  { name: "Button", label: "按鈕", description: "觸發動作，例如新增、送出或取消。", skeleton: '<rect x="35" y="20" width="90" height="32" rx="6"/><path d="M57 36h46"/>' },
+  { name: "Input", label: "輸入框", description: "讓使用者輸入單行文字。", skeleton: '<path d="M15 14h42"/><rect x="15" y="25" width="130" height="30" rx="4"/><path d="M25 40h65M95 33v14"/>' },
+  { name: "Dropdown", label: "下拉選單", description: "展開選項並選取其中一項。", skeleton: '<rect x="25" y="5" width="110" height="23" rx="3"/><path d="M35 17h55m25-4 5 5 5-5"/><rect x="25" y="31" width="110" height="37" rx="3"/><path d="M35 43h65M35 56h50"/>' },
+  { name: "Modal", label: "對話框", description: "在目前畫面上方進行確認或操作。", skeleton: '<rect x="25" y="5" width="110" height="62" rx="5"/><path d="M38 19h55m22-4 7 7m0-7-7 7M38 33h80M38 42h60"/><rect x="90" y="50" width="30" height="10" rx="2"/>' },
+  { name: "Tabs", label: "分頁切換", description: "在同一區域切換不同內容。", skeleton: '<path d="M15 25h130M15 24h35M20 15h25M65 15h25M110 15h25"/><rect x="15" y="34" width="130" height="30" rx="3"/>' },
+  { name: "Toast", label: "短暫通知", description: "短暫顯示操作結果或狀態。", skeleton: '<rect x="10" y="22" width="140" height="30" rx="5"/><path d="m22 36 4 4 8-8M45 37h75m13-4 7 7m0-7-7 7"/>' },
+  { name: "Checkbox", label: "核取方塊", description: "勾選或取消，可同時選擇多項。", skeleton: '<rect x="25" y="15" width="16" height="16" rx="2"/><path d="m28 23 4 4 6-8M52 23h80"/><rect x="25" y="43" width="16" height="16" rx="2"/><path d="M52 51h60"/>' },
+  { name: "Switch", label: "開關", description: "切換開啟或關閉狀態。", skeleton: '<rect x="20" y="25" width="48" height="24" rx="12"/><circle cx="55" cy="37" r="8"/><path d="M85 37h55"/>' },
+  { name: "Card", label: "卡片", description: "將相關資訊與操作放在同一容器。", skeleton: '<rect x="30" y="4" width="100" height="64" rx="5"/><rect x="38" y="12" width="84" height="22" rx="2"/><path d="M38 44h60M38 55h80"/>' },
+  { name: "Popover", label: "浮動面板", description: "點擊後展開附加資訊或操作。", skeleton: '<rect x="25" y="5" width="110" height="44" rx="5"/><path d="M40 18h65M40 30h80m-48 19 8 7 8-7"/><path d="M65 65h30"/>' },
+  { name: "Accordion", label: "摺疊區塊", description: "展開或收合區塊內容。", skeleton: '<rect x="20" y="5" width="120" height="62" rx="3"/><path d="M20 25h120M35 15h55m30-4 5 5 5-5M35 36h80M35 46h60M20 55h120M35 62h55"/>' },
+];

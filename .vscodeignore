@@ -1,0 +1,17 @@
+# Only the bundled editor and its documentation belong in the extension.
+src/**
+tests/**
+scripts/**
+node_modules/**
+.vscode/**
+test-results/**
+test-results-native/**
+playwright-report/**
+dist/dev.*
+dist/*.map
+tsconfig.json
+playwright*.config.ts
+package-lock.json
+*.vsix
+ui-feedback.export-*/**
+ui-fix/**
