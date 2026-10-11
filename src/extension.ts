@@ -21,7 +21,7 @@ function pastedScreenshot(value: unknown): Screenshot {
 
 /** Surface actionable errors without losing an open draft. */
 function report(error: unknown): void {
-  void vscode.window.showErrorMessage(`UI Feedback：${error instanceof Error ? error.message : String(error)}`);
+  void vscode.window.showErrorMessage(`redpen：${error instanceof Error ? error.message : String(error)}`);
 }
 
 /** Register the screenshot entry point and the persisted JSON editor. */
@@ -208,7 +208,7 @@ class FeedbackEditor implements vscode.CustomTextEditorProvider {
               images[name] = { data: `data:image/${/jpe?g/.test(asset.extension) ? "jpeg" : asset.extension};base64,${Buffer.from(asset.bytes).toString("base64")}`, width: size?.width, height: size?.height };
             }
             const svg = exportSvg(project, `data:image/${mime};base64,${Buffer.from(source.bytes).toString("base64")}`, message.sourceWidth, message.sourceHeight, images);
-            const target = await vscode.window.showSaveDialog({ filters: { "UI Feedback SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "ui-feedback.svg"), title: "匯出三層 SVG" });
+            const target = await vscode.window.showSaveDialog({ filters: { "redpen SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "ui-feedback.svg"), title: "匯出三層 SVG" });
             if (!target) { await webview.postMessage({ type: "exportCanceled" }); break; }
             if (target.toString() === document.uri.toString() || projectAssets(project).some(name => target.toString() === vscode.Uri.joinPath(directory, name).toString())) throw new Error("請使用不同檔名，避免覆寫圖片或稿件。");
             await vscode.workspace.fs.writeFile(target, encoder.encode(svg));
@@ -243,6 +243,6 @@ class FeedbackEditor implements vscode.CustomTextEditorProvider {
     const nonce = randomUUID();
     return `<!doctype html><html lang="zh-Hant"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-      <link rel="stylesheet" href="${css}"><title>UI Feedback</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
+      <link rel="stylesheet" href="${css}"><title>redpen</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
   }
 }

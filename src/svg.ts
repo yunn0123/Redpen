@@ -116,7 +116,7 @@ export function exportSvg(input: Project, source: string, width: number, height:
   const modified = project.items.filter(item => !["note", "comment"].includes(item.kind)).map(item => `<g id="item-${item.id}">${shape(item, assets)}</g>`).join("\n");
   const markers = project.items.map((item, i) => item.kind === "comment" ? "" : `${item.kind === "note" ? `<g id="item-${item.id}">${shape(item, assets)}</g>` : ""}<g><rect x="${item.x}" y="${item.y}" width="28" height="24" rx="3" fill="${item.color}"/><text x="${item.x + 14}" y="${item.y + 17}" font-size="14" fill="white" text-anchor="middle">${i + 1}</text></g>`).join("\n");
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${outputRight - left}" height="${outputBottom - top}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
-<title>UI Feedback</title><desc>original 是原圖；modified 是可編輯的修改物件，疊於 original 上；annotations 包含編號、元件種類與完整文字需求。座標以原圖左上角為原點。</desc>
+<title>redpen</title><desc>original 是原圖；modified 是可編輯的修改物件，疊於 original 上；annotations 包含編號、元件種類與完整文字需求。座標以原圖左上角為原點。</desc>
 <metadata id="ui-feedback-draft">${xml(JSON.stringify({ project, width, height }))}</metadata>
 <defs><image id="source-image" width="${width}" height="${height}" href="${source}"/>${assets.map((name, i) => `<symbol id="asset-${i}" viewBox="0 0 ${images[name].width} ${images[name].height}" preserveAspectRatio="none"><image id="raster-${i}" data-asset="${xml(name)}" width="${images[name].width}" height="${images[name].height}" href="${images[name].data}"/></symbol>`).join("")}</defs>
 <g id="original" inkscape:groupmode="layer" inkscape:label="original"><use href="#source-image"/></g>
@@ -130,7 +130,7 @@ export function readFeedbackSvg(svg: string): { project: Project; source: string
   if (svg.length > 75_000_000) throw new Error("SVG 稿件過大。");
   const metadata = /<metadata id="ui-feedback-draft">([^<]*)<\/metadata>/.exec(svg)?.[1];
   const source = /<image id="source-image"[^>]* href="(data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2})"\s*\/>/.exec(svg)?.[1];
-  if (!metadata || !source) throw new Error("請選擇由 UI Feedback 匯出的 SVG 稿件。");
+  if (!metadata || !source) throw new Error("請選擇由 redpen 匯出的 SVG 稿件。");
   const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
   const data = JSON.parse(metadata.replace(/&(amp|lt|gt|quot|apos);/g, (_, name: string) => entities[name]));
   const images: Record<string, { data: string; width: number; height: number }> = {};

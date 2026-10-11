@@ -1,8 +1,8 @@
 {
   "name": "ui-feedback",
-  "displayName": "UI Feedback",
+  "displayName": "redpen",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "local-tools",
   "license": "MIT",
   "repository": {
@@ -26,13 +26,13 @@
     "commands": [
       {
         "command": "uiFeedback.open",
-        "title": "UI Feedback: Open Canvas"
+        "title": "redpen: Open Canvas"
       }
     ],
     "customEditors": [
       {
         "viewType": "uiFeedback.editor",
-        "displayName": "UI Feedback",
+        "displayName": "redpen",
         "selector": [
           {
             "filenamePattern": "*.uifeedback.json"

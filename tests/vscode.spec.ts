@@ -40,7 +40,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     const quickInput = window.locator(".quick-input-widget input");
     await quickInput.fill(">View: Reopen Editor With...", { timeout: 10_000 });
     await window.keyboard.press("Enter");
-    await window.getByText("UI Feedback", { exact: true }).first().click({ timeout: 10_000 });
+    await window.getByText("redpen", { exact: true }).first().click({ timeout: 10_000 });
     let frame = window.frames()[0];
     // The inner frame containing the bundled app can be identified independently of VS Code's wrapper URL.
     await expect.poll(async () => {
@@ -89,7 +89,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
 
     // The new entry point must reach a blank canvas without an import or save dialog.
     await window.keyboard.press("F1");
-    await quickInput.fill(">UI Feedback: Open Canvas"); await window.keyboard.press("Enter");
+    await quickInput.fill(">redpen: Open Canvas"); await window.keyboard.press("Enter");
     await expect.poll(async () => {
       for (const candidate of window.frames()) {
         // VS Code disposes the previous editor frame while opening the new canvas.
