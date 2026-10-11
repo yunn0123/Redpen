@@ -3,6 +3,10 @@
 
 在 VS Code 的編輯分頁中標註實機截圖、拼貼 UI 修改稿，再將圖片與文字需求交給 coding agent。
 
+## 授權
+
+本專案採用 [MIT License](LICENSE)。第三方套件的授權聲明見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ## 使用
 
 1. 安裝 `.vsix`：VS Code Extensions → `…` → **Install from VSIX…**。
