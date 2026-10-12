@@ -52,13 +52,16 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await frame!.locator("#comment").fill("");
     await frame!.locator("#comment").pressSequentially("點擊後新增輸入框，顯示 tooltip。", { delay: 20 });
     await expect(frame!.locator("#comment")).toHaveValue("點擊後新增輸入框，顯示 tooltip。");
-    await frame!.getByRole("button", { name: "選取", exact: true }).click();
+    await frame!.getByRole("button", { name: "Select", exact: true }).click();
     await frame!.locator("#canvas").focus();
     await window.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
-    await expect.poll(async () => JSON.parse(await readFile(file, "utf8")).items[0].comment).toContain("tooltip");
-    await frame!.getByRole("button", { name: "復原", exact: true }).click();
+    // Retry while VS Code is writing; the file can briefly contain incomplete JSON.
+    await expect(async () => {
+      expect(JSON.parse(await readFile(file, "utf8")).items[0].comment).toContain("tooltip");
+    }).toPass({ timeout: 5000 });
+    await frame!.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(frame!.locator("#comment")).toHaveValue("原始需求");
-    await frame!.getByRole("button", { name: "重做", exact: true }).click();
+    await frame!.getByRole("button", { name: "Redo", exact: true }).click();
     await expect(frame!.locator("#comment")).toHaveValue("點擊後新增輸入框，顯示 tooltip。");
     // Stub dialogs and clipboard writes; exercise the real host without replacing the user clipboard.
     const target = join(workspace, "handoff.svg");
@@ -68,24 +71,24 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       dialog.showSaveDialog = async () => { (globalThis as any).redpenDialogRequests.push("save"); return { canceled: false, filePath: target }; };
       dialog.showOpenDialog = async () => { (globalThis as any).redpenDialogRequests.push("open"); return { canceled: true, filePaths: [] }; };
     }, target);
-    await frame!.getByRole("button", { name: "設定", exact: true }).click();
+    await frame!.getByRole("button", { name: "Settings", exact: true }).click();
     await frame!.locator("#handoff-prompt").fill("請依三層修改：{svgPath}");
-    await frame!.getByRole("button", { name: "儲存設定", exact: true }).click();
-    await expect(frame!.getByRole("status")).toHaveText("設定已儲存。");
-    await frame!.getByRole("button", { name: "關閉設定", exact: true }).click();
-    await frame!.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
-    await expect(frame!.getByRole("status")).toContainText("已匯出單一 SVG");
+    await frame!.getByRole("button", { name: "Save settings", exact: true }).click();
+    await expect(frame!.getByRole("status")).toHaveText("Settings saved.");
+    await frame!.getByRole("button", { name: "Close settings", exact: true }).click();
+    await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
+    await expect(frame!.getByRole("status")).toContainText("Exported one SVG");
     const svg = await readFile(target, "utf8");
     expect(svg).toContain("tooltip"); expect(svg).toContain('id="original"');
     const restored = readRedpenSvg(svg);
     expect(restored.project.items[0].comment).toContain("tooltip");
     expect(Buffer.from(restored.source.split(",")[1], "base64")).toEqual(screenshot());
     expect((await readdir(workspace)).sort()).toEqual(["handoff.svg", "legacy.uifeedback.json", "screen.png"]);
-    await frame!.getByRole("button", { name: "設定", exact: true }).click();
-    await frame!.getByRole("button", { name: "複製交接 prompt", exact: true }).click();
-    await expect(frame!.getByRole("status")).toContainText("已複製交接 prompt");
+    await frame!.getByRole("button", { name: "Settings", exact: true }).click();
+    await frame!.getByRole("button", { name: "Copy handoff prompt", exact: true }).click();
+    await expect(frame!.getByRole("status")).toContainText("Handoff prompt and SVG path copied");
     expect(await app.evaluate(() => (globalThis as any).redpenPrompt)).toBe(`請依三層修改：${target}`);
-    await frame!.getByRole("button", { name: "關閉設定", exact: true }).click();
+    await frame!.getByRole("button", { name: "Close settings", exact: true }).click();
 
     // The new entry point must reach a blank canvas without an import or save dialog.
     await window.keyboard.press("F1");
@@ -94,7 +97,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       for (const candidate of window.frames()) {
         // VS Code disposes the previous editor frame while opening the new canvas.
         try {
-          if (await candidate.getByText("直接貼上你的截圖", { exact: true }).isVisible()) { frame = candidate; return true; }
+          if (await candidate.getByText("Paste your screenshot", { exact: true }).isVisible()) { frame = candidate; return true; }
         } catch (error) { if (!candidate.isDetached()) throw error; }
       }
       return false;
@@ -106,33 +109,33 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       const clipboard = new DataTransfer(); clipboard.items.add(new File([bytes], "clipboard.png", { type: "image/png" }));
       document.getElementById("canvas")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
     }, screenshot().toString("base64"));
-    await expect(frame!.locator("#filename")).toContainText("800 × 600 · 自動暫存");
+    await expect(frame!.locator("#filename")).toContainText("800 × 600 · Autosaved");
     expect(await app.evaluate(() => (globalThis as any).redpenDialogRequests)).toEqual(["save"]);
     const bounds = (await frame!.locator("#canvas").boundingBox())!;
     const scale = Math.max(.02, Math.min(1, (bounds.width - 64) / 800, (bounds.height - 96) / 600));
     const origin = { x: bounds.x + (bounds.width - 800 * scale) / 2, y: bounds.y + (bounds.height - 600 * scale) / 2 };
-    await frame!.getByRole("button", { name: "UI 元件", exact: true }).click();
+    await frame!.getByRole("button", { name: "Components", exact: true }).click();
     await frame!.getByRole("searchbox").fill("Tooltip");
     await frame!.locator(".library-card").click();
     await window.mouse.move(origin.x + 100 * scale, origin.y + 100 * scale); await window.mouse.down();
     await window.mouse.move(origin.x + 300 * scale, origin.y + 250 * scale, { steps: 6 }); await window.mouse.up();
     await frame!.locator("#comment").fill("直接貼圖後新增 tooltip。");
-    await frame!.getByRole("button", { name: "選取", exact: true }).click();
-    await frame!.getByRole("button", { name: "復原", exact: true }).click();
+    await frame!.getByRole("button", { name: "Select", exact: true }).click();
+    await frame!.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(frame!.locator("#comment")).toHaveValue("");
-    await frame!.getByRole("button", { name: "重做", exact: true }).click();
+    await frame!.getByRole("button", { name: "Redo", exact: true }).click();
     await expect(frame!.locator("#comment")).toHaveValue("直接貼圖後新增 tooltip。");
-    await frame!.getByRole("button", { name: "文字", exact: true }).click();
+    await frame!.getByRole("button", { name: "Text", exact: true }).click();
     await window.mouse.click(origin.x - 20 * scale, origin.y + 300 * scale);
     await frame!.locator("#display-text").fill("截圖外說明");
     await window.keyboard.press(process.platform === "darwin" ? "Meta+=" : "Control+=");
     await expect(frame!.locator("#font-size")).toHaveValue("24");
-    await frame!.getByRole("button", { name: "新圖片", exact: true }).click();
+    await frame!.getByRole("button", { name: "New image", exact: true }).click();
     await frame!.locator("#image-file").setInputFiles({ name: "part.png", mimeType: "image/png", buffer: screenshot(120, 80) });
     await expect(frame!.locator("#count")).toHaveText("3");
     await expect(frame!.locator("#image-actions")).toBeVisible();
-    await frame!.getByRole("button", { name: "旋轉 90°", exact: true }).click();
-    await frame!.getByRole("button", { name: "水平鏡像", exact: true }).click();
+    await frame!.getByRole("button", { name: "Rotate 90°", exact: true }).click();
+    await frame!.getByRole("button", { name: "Flip horizontal", exact: true }).click();
     await window.mouse.dblclick(origin.x + 100 * scale, origin.y + 500 * scale);
     await expect(frame!.locator("#background-hint")).toBeVisible();
     await frame!.evaluate(encoded => {
@@ -142,26 +145,26 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     }, screenshot(640, 480).toString("base64"));
     await expect(frame!.locator("#filename")).toContainText("640 × 480");
     await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined }); });
-    await frame!.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
-    await expect(frame!.getByRole("button", { name: "匯出給 Agent", exact: true })).toBeEnabled();
+    await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
+    await expect(frame!.getByRole("button", { name: "Export for Agent", exact: true })).toBeEnabled();
     expect((await readdir(workspace)).filter(name => name.endsWith(".svg"))).toHaveLength(1);
     const pastedTarget = join(workspace, "pasted.svg");
     await app.evaluate(({ dialog }, target) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: target }); }, pastedTarget);
-    await frame!.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
-    await expect(frame!.getByRole("status")).toContainText("已匯出單一 SVG");
+    await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
+    await expect(frame!.getByRole("status")).toContainText("Exported one SVG");
     const handoff = await readFile(pastedTarget, "utf8");
-    expect(handoff).toContain("元件註解 · Tooltip"); expect(handoff).toContain("字級：24 px");
+    expect(handoff).toContain("Component note · Tooltip"); expect(handoff).toContain("Font size: 24 px");
     const imported = readRedpenSvg(handoff);
     expect(imported.project.items.some(item => item.x < 0)).toBe(true);
     expect(imported.project.items[2]).toMatchObject({ kind: "image", width: 80, height: 120, rotation: 90, flipX: true });
     expect(Buffer.from(imported.images![imported.project.items[2].asset!].data.split(",")[1], "base64")).toEqual(screenshot(120, 80));
     expect(Buffer.from(imported.source.split(",")[1], "base64")).toEqual(screenshot(640, 480));
-    await frame!.getByRole("button", { name: "設定", exact: true }).click();
+    await frame!.getByRole("button", { name: "Settings", exact: true }).click();
     await expect(frame!.locator("#handoff-prompt")).toHaveValue("請依三層修改：{svgPath}");
-    await frame!.getByRole("button", { name: "關閉設定", exact: true }).click();
+    await frame!.getByRole("button", { name: "Close settings", exact: true }).click();
     // Reimport the single SVG through the production file picker and recover editable items.
     await app.evaluate(({ dialog }, target) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [target] }); }, pastedTarget);
-    await frame!.getByRole("button", { name: "匯入截圖", exact: true }).click();
+    await frame!.getByRole("button", { name: "Import", exact: true }).click();
     await expect.poll(async () => {
       for (const candidate of window.frames()) {
         try {
@@ -171,7 +174,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       return false;
     }).toBeTruthy();
     await frame!.locator(".item-card").first().click();
-    await expect(frame!.locator("#selection-title")).toContainText("元件註解 · Tooltip");
+    await expect(frame!.locator("#selection-title")).toContainText("Component note · Tooltip");
     await expect(frame!.locator("#comment")).toHaveValue("直接貼圖後新增 tooltip。");
     await window.screenshot({ path: "test-results-native/vscode-preview.png" });
   } catch (error) {

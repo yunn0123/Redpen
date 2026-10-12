@@ -60,8 +60,8 @@ test("new fields round-trip while legacy drafts remain valid and invalid metadat
   assert.throws(() => parseProject({ ...draft(), items: [{ ...draft().items[0], component: "<script>" }] }));
   assert.deepEqual(selectionRect({ x: 10, y: 20 }, { x: -50, y: -40 }), { x: -50, y: -40, width: 60, height: 60 });
   const markdown = agentMarkdown(draft(), { width: 1400, height: 900, sourceWidth: 1200, sourceHeight: 800, originX: -200, originY: -100 });
-  assert.match(markdown, /截圖尺寸：1200 × 800/);
-  assert.match(markdown, /匯出尺寸：1400 × 900/);
+  assert.match(markdown, /Screenshot size: 1200 × 800/);
+  assert.match(markdown, /Export size: 1400 × 900/);
   assert.match(markdown, /x=200, y=100/);
 });
 
@@ -72,7 +72,7 @@ test("SVG carries independent layers, escaped text and a recoverable source with
   const svg = exportSvg(project, source, 800, 600);
   assert.equal((svg.match(/inkscape:groupmode="layer"/g) ?? []).length, 3);
   for (const name of ["original", "modified", "annotations"]) assert.ok(svg.includes(`id="${name}"`));
-  assert.ok(svg.includes("元件註解 · Tooltip")); assert.ok(svg.includes("&lt;script&gt;"));
+  assert.ok(svg.includes("Component note · Tooltip")); assert.ok(svg.includes("&lt;script&gt;"));
   assert.ok(!svg.includes("<script>"));
   assert.deepEqual(readRedpenSvg(svg), { project, source });
   assert.match(svg, /<metadata id="redpen-draft">/);
@@ -80,7 +80,7 @@ test("SVG carries independent layers, escaped text and a recoverable source with
   assert.throws(() => readRedpenSvg('<svg><script>alert(1)</script></svg>'));
   assert.throws(() => exportSvg(project, "https://example.com/image.png", 800, 600));
   project.items[0].x = 100_000;
-  assert.throws(() => exportSvg(project, source, 800, 600), /1600/);
+  assert.throws(() => exportSvg(project, source, 800, 600), /16 million/);
 });
 
 test("icon strokes are bounded normalized vectors and outline needs no comment", () => {
@@ -90,6 +90,19 @@ test("icon strokes are bounded normalized vectors and outline needs no comment",
   project.items[0] = { ...project.items[0], kind: "outline", comment: "", strokes: undefined };
   const svg = exportSvg(project, "data:image/png;base64,aGVsbG8=", 800, 600);
   assert.ok(svg.includes('fill="none" stroke="#ff0000"'));
+});
+
+/** English notes should wrap at word boundaries without losing multilingual user content. */
+test("SVG notes wrap English words and preserve long tokens and CJK text", () => {
+  const project = draft();
+  project.items[0].comment = "Show a tooltip with the full event details on hover.\n" + "x".repeat(100) + "\n保留中文註解";
+  const svg = exportSvg(project, "data:image/png;base64,AAAA", 800, 600);
+  assert.match(svg, /<text[^>]*>details on hover\.<\/text>/);
+  assert.ok(svg.includes("保留中文註解"));
+  const text = [...svg.matchAll(/<text[^>]*>(x+)<\/text>/g)].map(match => match[1]);
+  assert.ok(text.length > 1);
+  assert.equal(text.join(""), "x".repeat(100));
+  assert.deepEqual(readRedpenSvg(svg).project, project);
 });
 
 test("2940 by 1912 screenshots with six annotations export without the legacy PNG payload", () => {
@@ -112,7 +125,7 @@ test("image transforms and unpositioned comments survive SVG round-trip", () => 
   const images = { "part.png": { data: source, width: 120, height: 80 } };
   const svg = exportSvg(project, source, 800, 600, images);
   assert.deepEqual(readRedpenSvg(svg), { project: parseProject(project), source, images });
-  assert.match(svg, /無指定位置/);
+  assert.match(svg, /No specific location/);
   assert.doesNotMatch(svg, /data-target="item-general"/);
   assert.throws(() => exportSvg(project, source, 800, 600));
   assert.throws(() => readRedpenSvg(svg.replace('data-asset="part.png"', 'data-asset="missing.png"')));

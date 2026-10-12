@@ -32,33 +32,33 @@ function icon(name: string): string {
 }
 
 const tools: [Tool, string, string][] = [
-  ["select", "選取", "V"], ["pan", "移動畫布", "H"], ["note", "框選註解", "N"], ["cover", "遮蓋", "M"],
-  ["crop", "複製區塊", "C"], ["arrow", "箭頭", "A"], ["text", "文字", "T"], ["stamp", "圖示", "I"], ["outline", "外框", "R"],
+  ["select", "Select", "V"], ["pan", "Pan", "H"], ["note", "Annotate", "N"], ["cover", "Cover", "M"],
+  ["crop", "Copy region", "C"], ["arrow", "Arrow", "A"], ["text", "Text", "T"], ["stamp", "Icon", "I"], ["outline", "Outline", "R"],
 ];
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <div class="toolbar" role="toolbar" aria-label="畫布工具">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
-    <button id="components" aria-label="UI 元件">${icon("crop")}<span>UI 元件</span></button><button id="new-image" aria-label="新圖片">${icon("image")}<span>新圖片</span></button><button id="settings-open" aria-label="設定">${icon("settings")}<span>設定</span></button><span class="toolbar-spacer"></span><button id="undo" title="復原 (⌘/Ctrl Z)" aria-label="復原">${icon("undo")}</button><button id="redo" title="重做 (⌘/Ctrl Shift Z)" aria-label="重做">${icon("redo")}</button><button id="import" aria-label="匯入截圖">${icon("upload")}<span>匯入截圖</span></button><button id="export" class="primary" aria-label="匯出給 Agent">${icon("export")}<span>匯出給 Agent</span></button><button id="toggle-sidebar" aria-label="收起需求欄" aria-expanded="true">${icon("sidebar")}</button></div>
-  <main><section class="workspace" aria-label="截圖畫布"><div id="canvas" tabindex="0" role="application" aria-label="截圖編輯畫布，使用工具框選；方向鍵移動所選物件，Delete 刪除"></div>
-    <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>直接貼上你的截圖</h2><p>點一下畫布，按 ⌘ V / Ctrl V 貼上圖片。<br>不用先儲存，編輯完成後再匯出。</p><button id="empty-import">或選擇圖片檔案</button></div>
-    <div class="canvas-hint" id="hint">框選區域，寫下你想改的地方</div>
-    <div class="zoom-controls"><button id="zoom-out" aria-label="縮小">−</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="放大">＋</button><span class="divider"></span><button id="fit" title="符合畫面 (0)" aria-label="符合畫面">${icon("fit")}</button></div>
-  </section><aside id="sidebar" aria-label="修改需求"><div class="aside-heading"><h2>修改需求</h2><div><button id="add-comment" aria-label="新增整體需求" title="新增無位置的文字需求">＋</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>刪除所選物件</button><p id="background-hint" hidden>已選取底圖，貼上圖片可替換底圖；現有元件的位置與大小不變。</p>
-    <p class="aside-description">選取畫面上的區域，補充外觀或互動行為。</p>
-    <section id="inspector" hidden><div class="inspector-heading"><strong id="selection-title"></strong><button id="delete" class="danger" title="刪除物件" aria-label="刪除物件">${icon("trash")}</button></div>
-      <div id="image-actions" hidden><button id="rotate-image">旋轉 90°</button><button id="flip-image-x">水平鏡像</button><button id="flip-image-y">垂直鏡像</button></div>
-      <label id="text-label" hidden>顯示文字<input id="display-text" maxlength="2000"></label>
-      <label id="font-label" hidden>字級 · ⌘/Ctrl ＋／－<input id="font-size" type="number" min="8" max="200" step="2" value="22"></label>
-      <label id="stamp-label" hidden>圖示<select id="stamp"><option value="placeholder">灰色圓圈 · Icon 佔位符</option><option value="+">＋ 新增</option><option value="✓">✓ 完成</option><option value="×">× 關閉</option><option value="!">! 提醒</option><option value="?">? 說明</option><option value="★">★ 星號</option>${iconLibrary.map(entry => `<option value="icon:${entry.id}">${entry.name}</option>`).join("")}</select></label>
-      <section id="sketch-panel" hidden><label>簡易鋼筆繪製<canvas id="sketch" width="200" height="160" aria-label="圖示手繪區"></canvas></label><button id="sketch-clear">清除筆畫</button><small>也可直接在下方文字描述需要的 icon。</small></section>
-      <label id="color-label">顏色<input id="color" type="color" value="#f35e5e"></label>
-      <label for="comment">補充需求<textarea id="comment" maxlength="8000" rows="5" placeholder="例如：hover 此區域時顯示＋，點擊後直接新增可輸入的 todo。"></textarea></label>
-      <span class="field-hint" id="save-hint">離開欄位即套用 · 自動暫存</span>
-    </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>讓每個修改都有位置</p><small>使用「框選註解」，或選取一個拼貼物件。</small></div>
-    <div class="aside-footer"><span id="filename">原圖保留 · 完成後再匯出</span></div></aside></main>
-  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">新增圖片元件</h2><button id="image-dialog-close" aria-label="關閉新增圖片">×</button></div><p>選擇圖片，或直接按 ⌘ V／Ctrl V 貼上。圖片會成為可移動、旋轉與鏡像的元件。</p><button id="image-file-open" class="primary">選擇圖片檔案</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
-  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="關閉素材庫">×</button></div><input id="library-search" type="search" aria-label="搜尋素材" placeholder="搜尋名稱或用途"><div id="library-results"></div></dialog>
-  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">設定</h2><button id="settings-close" aria-label="關閉設定">×</button></div><label>複製交接 prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>使用 {svgPath} 代表匯出的 SVG 路徑；未填寫此變數時會自動附上路徑。</p><div class="settings-actions"><button id="settings-reset">還原預設</button><button id="settings-save" class="primary">儲存設定</button><button id="copy-prompt" disabled>複製交接 prompt</button></div><p>匯出為單一 SVG：original 原圖、modified 修改物件、annotations 註解文字。可透過「匯入截圖」重新開啟本工具匯出的 SVG。</p></dialog>
+  <div class="toolbar" role="toolbar" aria-label="Canvas tools">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
+    <button id="components" aria-label="Components">${icon("crop")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><span class="toolbar-spacer"></span><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export for Agent</span></button><button id="toggle-sidebar" aria-label="Hide requests" aria-expanded="true">${icon("sidebar")}</button></div>
+  <main><section class="workspace" aria-label="Screenshot canvas"><div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
+    <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Click the canvas and press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
+    <div class="canvas-hint" id="hint">Draw a region and describe what you want to change</div>
+    <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">＋</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
+  </section><aside id="sidebar" aria-label="Requests"><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">＋</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><p id="background-hint" hidden>Background selected. Paste to replace it. Existing objects keep their positions and sizes.</p>
+    <p class="aside-description">Select a region and describe its appearance or behavior.</p>
+    <section id="inspector" hidden><div class="inspector-heading"><strong id="selection-title"></strong><button id="delete" class="danger" title="Delete object" aria-label="Delete object">${icon("trash")}</button></div>
+      <div id="image-actions" hidden><button id="rotate-image">Rotate 90°</button><button id="flip-image-x">Flip horizontal</button><button id="flip-image-y">Flip vertical</button></div>
+      <label id="text-label" hidden>Display text<input id="display-text" maxlength="2000"></label>
+      <label id="font-label" hidden>Font size · ⌘/Ctrl + / −<input id="font-size" type="number" min="8" max="200" step="2" value="22"></label>
+      <label id="stamp-label" hidden>Icon<select id="stamp"><option value="placeholder">Gray circle · Icon placeholder</option><option value="+">＋ Add</option><option value="✓">✓ Done</option><option value="×">× Close</option><option value="!">! Alert</option><option value="?">? Help</option><option value="★">★ Star</option>${iconLibrary.map(entry => `<option value="icon:${entry.id}">${entry.name}</option>`).join("")}</select></label>
+      <section id="sketch-panel" hidden><label>Sketch an icon<canvas id="sketch" width="200" height="160" aria-label="Icon sketch area"></canvas></label><button id="sketch-clear">Clear strokes</button><small>You can also describe the icon in the request below.</small></section>
+      <label id="color-label">Color<input id="color" type="color" value="#f35e5e"></label>
+      <label for="comment">Request<textarea id="comment" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea></label>
+      <span class="field-hint" id="save-hint">Leave field to apply · Autosaved</span>
+    </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>Give every change a place</p><small>Use Annotate, or select an object on the canvas.</small></div>
+    <div class="aside-footer"><span id="filename">Original preserved · Export when ready</span></div></aside></main>
+  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">×</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
+  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">×</button></div><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results"></div></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">×</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>`;
 
 /** Resolve a fixed editor element once its template has been mounted. */
@@ -157,7 +157,7 @@ function endStroke(save: boolean): void {
 function changeFontSize(size: number): void {
   const item = selected();
   if (!item || item.kind !== "text" || fatal) return;
-  if (!Number.isFinite(size)) { toast("請輸入 8 至 200 的字級。"); return; }
+  if (!Number.isFinite(size)) { toast("Enter a font size from 8 to 200."); return; }
   item.fontSize = Math.max(8, Math.min(200, Math.round(size)));
   commit();
 }
@@ -165,18 +165,18 @@ function changeFontSize(size: number): void {
 /** Open one searchable catalog; choosing a result arms the next canvas gesture. */
 function openLibrary(): void {
   flushFields();
-  el("library-title").textContent = "UI 元件";
+  el("library-title").textContent = "Components";
   el<HTMLInputElement>("library-search").value = "";
   renderLibrary();
   el<HTMLDialogElement>("library").showModal();
   el("library-search").focus();
 }
 
-/** Render trusted local vector previews and search both English names and Chinese descriptions. */
+/** Render trusted local vector previews and search component names and descriptions. */
 function renderLibrary(): void {
   const query = el<HTMLInputElement>("library-search").value.trim().toLowerCase();
   const results = el("library-results"); results.replaceChildren();
-  const entries = componentLibrary.map(entry => ({ name: `${entry.name} · ${entry.label}`, description: entry.description, preview: entry.skeleton, value: entry.name }));
+  const entries = componentLibrary.map(entry => ({ name: entry.name, description: entry.description, preview: entry.skeleton, value: entry.name }));
   for (const entry of entries.filter(entry => `${entry.name} ${entry.description}`.toLowerCase().includes(query))) {
     const button = document.createElement("button");
     button.className = "library-card";
@@ -187,12 +187,12 @@ function renderLibrary(): void {
     button.addEventListener("click", () => {
       el<HTMLDialogElement>("library").close();
       setTool("note");
-      pendingComponent = entry.value; el("hint").textContent = `${entry.name}：框選需要此元件的區域，再補充互動需求`;
+      pendingComponent = entry.value; el("hint").textContent = `${entry.name}: Draw a region for this component, then describe its behavior`;
       canvas.focus();
     });
     results.append(button);
   }
-  if (!results.childElementCount) results.textContent = "找不到符合的項目，請換個關鍵字。";
+  if (!results.childElementCount) results.textContent = "No matches. Try another keyword.";
 }
 
 /** Commit complete gestures as one native undo step; pointer motion stays out of document history. */
@@ -218,14 +218,14 @@ function renderInspector(): void {
   el("notes-empty").hidden = Boolean(project?.items.length);
   el("inspector").hidden = !item;
   el("selection-summary").hidden = selectedIds.size < 2;
-  el("selection-summary").textContent = `已選取 ${selectedIds.size} 個物件 · 拖曳移動，⌘/Ctrl 點擊取消選取`;
+  el("selection-summary").textContent = `${selectedIds.size} objects selected · Drag to move, ⌘/Ctrl-click to deselect`;
   el("delete-many").hidden = selectedIds.size < 2;
   el("background-hint").hidden = !backgroundSelected;
   el<HTMLButtonElement>("add-comment").disabled = !screenshot;
   el("image-actions").hidden = !item || !["image", "crop"].includes(item.kind);
   if (item) {
     const index = project!.items.indexOf(item) + 1;
-    el("selection-title").textContent = `${String(index).padStart(2, "0")} · ${item.component ? `元件註解 · ${item.component}` : kindNames[item.kind]}`;
+    el("selection-title").textContent = `${String(index).padStart(2, "0")} · ${item.component ? `Component note · ${item.component}` : kindNames[item.kind]}`;
     el<HTMLTextAreaElement>("comment").value = item.comment;
     el<HTMLInputElement>("display-text").value = item.text;
     el<HTMLInputElement>("color").value = item.color;
@@ -249,9 +249,9 @@ function renderInspector(): void {
     number.textContent = String(index + 1).padStart(2, "0");
     const content = document.createElement("span");
     const title = document.createElement("strong");
-    title.textContent = entry.component ? `元件註解 · ${entry.component}` : kindNames[entry.kind];
+    title.textContent = entry.component ? `Component note · ${entry.component}` : kindNames[entry.kind];
     const summary = document.createElement("small");
-    summary.textContent = entry.comment || iconLibrary.find(icon => `icon:${icon.id}` === entry.text)?.name || entry.text || "點選補充需求";
+    summary.textContent = entry.comment || iconLibrary.find(icon => `icon:${icon.id}` === entry.text)?.name || entry.text || "Click to add a request";
     content.append(title, summary);
     button.append(number, content);
     button.addEventListener("click", () => { setTool("select"); selectItems([entry.id]); render(); el("comment").focus(); el("inspector").scrollIntoView({ block: "nearest" }); });
@@ -277,7 +277,7 @@ function makeNode(item: Item, index: number): Konva.Group | Konva.Shape {
       return group;
     }
     case "arrow": return new Konva.Arrow({ x: item.x, y: item.y, id: item.id, points: [0, 0, item.width, item.height], stroke: item.color, fill: item.color, strokeWidth: 3, pointerLength: 12, pointerWidth: 12, hitStrokeWidth: 18 });
-    case "text": return new Konva.Text({ ...base, text: item.text || "文字", fill: item.color, fontSize: item.fontSize ?? 22, align: "center", verticalAlign: "middle", fontFamily: "sans-serif", lineHeight: 1.3, wrap: "word" });
+    case "text": return new Konva.Text({ ...base, text: item.text || "Text", fill: item.color, fontSize: item.fontSize ?? 22, align: "center", verticalAlign: "middle", fontFamily: "sans-serif", lineHeight: 1.3, wrap: "word" });
     case "stamp": {
       if (item.text === "placeholder") {
         const group = new Konva.Group(base);
@@ -404,10 +404,10 @@ function setTool(next: Tool): void {
   document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.tool === tool)));
   canvas.style.cursor = tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair";
   const hints: Record<Tool, string> = {
-    select: "框選多個物件 · ⌘/Ctrl 點擊切換選取 · Delete 刪除 · 雙擊底圖可替換", pan: "拖曳移動畫布 · ⌘/Ctrl＋滾輪縮放",
-    note: "框選區域，寫下你想改的地方", cover: "框選遮蓋區域，再調整填色", crop: "框選原圖中的元件，複製後拖曳到新位置",
-    image: "加入圖片元件", comment: "無位置的整體需求",
-    arrow: "拖曳畫箭頭，指出位置或移動方向", text: "點一下加入文字", stamp: "點一下加入灰色圓圈，在右側描述或手繪 icon", outline: "拖曳框出重點，不需要填寫註解",
+    select: "Drag to select · ⌘/Ctrl-click to toggle · Delete to remove · Double-click the background to replace it", pan: "Drag to pan · ⌘/Ctrl + scroll to zoom",
+    note: "Draw a region and describe what you want to change", cover: "Draw a cover, then choose its fill color", crop: "Select a region of the original, then drag the copy to a new position",
+    image: "Add an image object", comment: "A general request without a specific location",
+    arrow: "Drag an arrow to point to a location or show movement", text: "Click to add text", stamp: "Click to add a placeholder, then describe or sketch the icon in the sidebar", outline: "Draw an outline to highlight an area; no annotation needed",
   };
   el("hint").textContent = hints[tool];
   render();
@@ -465,10 +465,10 @@ function backgroundColor(rect: Rect): string {
 /** New elements retain source geometry so a copied component can be traced in agent notes. */
 function addItem(kind: Kind, rect: Rect): void {
   if (!project || fatal) return;
-  if (project.items.length >= MAX_ITEMS) { toast(`每份稿件最多 ${MAX_ITEMS} 個物件。`); return; }
+  if (project.items.length >= MAX_ITEMS) { toast(`Each draft supports up to ${MAX_ITEMS} objects.`); return; }
   const item: Item = {
     ...rect, id: crypto.randomUUID(), kind, color: kind === "cover" ? backgroundColor(rect) : "#f35e5e",
-    text: kind === "text" ? "文字" : kind === "stamp" ? "placeholder" : "", comment: "",
+    text: kind === "text" ? "Text" : kind === "stamp" ? "placeholder" : "", comment: "",
     ...(kind === "text" ? { fontSize: 22 } : {}),
     ...(kind === "note" && pendingComponent ? { component: pendingComponent } : {}),
     ...(kind === "crop" ? { source: { ...rect }, x: rect.x + 16, y: rect.y + 16 } : {}),
@@ -572,22 +572,22 @@ function removeSelected(): void {
 async function insertImage(file: File, mode: "new" | "asset" | "replace"): Promise<void> {
   let url: string | undefined;
   try {
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("請選擇 PNG、JPEG 或 WebP 圖片。");
-    if (file.size > MAX_IMAGE_BYTES) throw new Error("單張圖片上限為 12 MB。");
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
+    if (file.size > MAX_IMAGE_BYTES) throw new Error("Each image must be 12 MB or smaller.");
     url = URL.createObjectURL(file);
     const image = new Image(); image.src = url; await image.decode();
-    if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > MAX_PIXELS) throw new Error("單張圖片上限為 1600 萬像素。");
+    if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > MAX_PIXELS) throw new Error("Each image must be 16 million pixels or smaller.");
     const retained = [...assets.values()].reduce((sum, asset) => sum + asset.naturalWidth * asset.naturalHeight, 0);
-    if (retained + image.naturalWidth * image.naturalHeight > 64_000_000) throw new Error("圖片總像素上限為 6400 萬，請縮小圖片後重試。");
+    if (retained + image.naturalWidth * image.naturalHeight > 64_000_000) throw new Error("Images exceed the 64 million pixel total limit. Resize them and try again.");
     const data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve(String(reader.result));
-      reader.onerror = () => reject(new Error("無法讀取圖片。")); reader.readAsDataURL(file);
+      reader.onerror = () => reject(new Error("Could not read the image.")); reader.readAsDataURL(file);
     });
     flushFields();
     const x = (stage.width() / 2 - scene.x()) / scene.scaleX(), y = (stage.height() / 2 - scene.y()) / scene.scaleY();
     host.postMessage({ type: "paste", image: data, mode, width: image.naturalWidth, height: image.naturalHeight, x, y });
     el<HTMLDialogElement>("image-dialog").close();
-  } catch (error) { toast(`貼上失敗：${error instanceof Error ? error.message : String(error)}`); }
+  } catch (error) { toast(`Paste failed: ${error instanceof Error ? error.message : String(error)}`); }
   finally { if (url) URL.revokeObjectURL(url); }
 }
 
@@ -606,7 +606,7 @@ async function exportImage(): Promise<void> {
   if (!project || !screenshot || exporting || fatal) return;
   flushFields();
   const empty = project.items.find(item => ["note", "comment"].includes(item.kind) && !item.comment.trim());
-  if (empty) { selectItems([empty.id]); render(); el("comment").focus(); toast("請先補上區域註解，再匯出給 agent。"); return; }
+  if (empty) { selectItems([empty.id]); render(); el("comment").focus(); toast("Fill in the region annotations before exporting for your agent."); return; }
   exporting = true; el<HTMLButtonElement>("export").disabled = true;
   host.postMessage({ type: "export", sourceWidth: screenshot.naturalWidth, sourceHeight: screenshot.naturalHeight, assetSizes: Object.fromEntries([...assets].map(([name, image]) => [name, { width: image.naturalWidth, height: image.naturalHeight }])) });
 }
@@ -617,9 +617,9 @@ window.addEventListener("message", async event => {
   if (message?.type === "settings") {
     handoffPrompt = message.prompt;
     el<HTMLTextAreaElement>("handoff-prompt").value = handoffPrompt;
-    if (message.saved) toast("設定已儲存。");
+    if (message.saved) toast("Settings saved.");
   } else if (message?.type === "promptCopied") {
-    toast("已複製交接 prompt 與 SVG 路徑。");
+    toast("Handoff prompt and SVG path copied.");
   } else if (message?.type === "selectItem") {
     setTool("select"); selectItems([message.id]); render();
   } else if (message?.type === "state") {
@@ -627,11 +627,11 @@ window.addEventListener("message", async event => {
     const generation = ++loadGeneration;
     try {
       const next = parseProject(message.project);
-      el("save-hint").textContent = message.scratch ? "離開欄位即套用 · 自動暫存" : "離開欄位即套用 · ⌘/Ctrl S 儲存稿件";
+      el("save-hint").textContent = message.scratch ? "Leave field to apply · Autosaved" : "Leave field to apply · ⌘/Ctrl S to save";
       if (!next.image) {
         assets.clear(); project = next; screenshot = undefined; imageUri = ""; selectItems([]); fatal = false;
         cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); layer.batchDraw();
-        el("empty").hidden = false; el("filename").textContent = "貼上圖片，立即開始編輯";
+        el("empty").hidden = false; el("filename").textContent = "Paste an image to start editing";
         el<HTMLButtonElement>("export").disabled = true;
         return;
       }
@@ -640,7 +640,7 @@ window.addEventListener("message", async event => {
         const image = new Image(); image.crossOrigin = "anonymous"; image.src = message.imageUri;
         await image.decode();
         if (generation !== loadGeneration) return;
-        if (image.naturalWidth * image.naturalHeight > MAX_PIXELS || !image.naturalWidth) throw new Error("截圖上限為 1600 萬像素，請先縮小圖片。");
+        if (image.naturalWidth * image.naturalHeight > MAX_PIXELS || !image.naturalWidth) throw new Error("The screenshot exceeds 16 million pixels. Resize it first.");
         screenshot = image; imageUri = message.imageUri;
       }
       const loaded = new Map<string, HTMLImageElement>();
@@ -650,27 +650,27 @@ window.addEventListener("message", async event => {
         if (name === next.image) continue;
         let image = assets.get(name);
         if (!image || image.src !== uri) { image = new Image(); image.crossOrigin = "anonymous"; image.src = uri; await image.decode(); }
-        if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > MAX_PIXELS) throw new Error("圖片元件尺寸無效或超過 1600 萬像素。");
+        if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > MAX_PIXELS) throw new Error("The image dimensions are invalid or exceed 16 million pixels.");
         pixels += image.naturalWidth * image.naturalHeight;
-        if (pixels > 64_000_000) throw new Error("此稿件圖片總像素超過 6400 萬，請減少圖片。");
+        if (pixels > 64_000_000) throw new Error("Images in this draft exceed 64 million pixels in total. Remove some images.");
         loaded.set(name, image);
       }
       if (generation !== loadGeneration) return;
       assets = loaded; project = next; fatal = false;
       selectedIds = new Set([...selectedIds].filter(id => project!.items.some(item => item.id === id)));
       selectedId = selectedIds.size === 1 ? [...selectedIds][0] : undefined;
-      el("empty").hidden = true; el("filename").textContent = `${screenshot!.naturalWidth} × ${screenshot!.naturalHeight} · ${message.scratch ? "自動暫存" : "本機稿件"}`;
+      el("empty").hidden = true; el("filename").textContent = `${screenshot!.naturalWidth} × ${screenshot!.naturalHeight} · ${message.scratch ? "Autosaved" : "Local draft"}`;
       el<HTMLButtonElement>("export").disabled = exporting;
       // An acknowledgement confirms the optimistic edit; rebuilding here could interrupt the next gesture.
       if (message.ack === undefined) render();
       if (!same) fit();
-    } catch (error) { fatal = true; toast(`無法載入截圖：${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
+    } catch (error) { fatal = true; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
   } else if (message?.type === "error") {
     fatal = Boolean(message.fatal); exporting = false;
     el<HTMLButtonElement>("export").disabled = fatal || !screenshot;
     toast(String(message.message));
   } else if (message?.type === "exported") {
-    exporting = false; el<HTMLButtonElement>("export").disabled = false; el<HTMLButtonElement>("copy-prompt").disabled = false; toast("已匯出單一 SVG，包含 original／modified／註解三層。");
+    exporting = false; el<HTMLButtonElement>("export").disabled = false; el<HTMLButtonElement>("copy-prompt").disabled = false; toast("Exported one SVG with original, modified, and annotations layers.");
   } else if (message?.type === "exportCanceled") {
     exporting = false; el<HTMLButtonElement>("export").disabled = !screenshot;
   }
@@ -686,8 +686,8 @@ el("toggle-sidebar").addEventListener("click", () => {
   flushFields(); const sidebar = el("sidebar"), button = el("toggle-sidebar");
   sidebar.hidden = !sidebar.hidden;
   button.setAttribute("aria-expanded", String(!sidebar.hidden));
-  button.setAttribute("aria-label", sidebar.hidden ? "展開需求欄" : "收起需求欄");
-  button.title = button.dataset.tooltip = sidebar.hidden ? "展開需求欄" : "收起需求欄";
+  button.setAttribute("aria-label", sidebar.hidden ? "Show requests" : "Hide requests");
+  button.title = button.dataset.tooltip = sidebar.hidden ? "Show requests" : "Hide requests";
 });
 el("add-comment").addEventListener("click", () => { flushFields(); addItem("comment", { x: 0, y: 0, width: 1, height: 1 }); });
 el("delete-many").addEventListener("click", removeSelected);
@@ -706,7 +706,7 @@ el("settings-close").addEventListener("click", () => el<HTMLDialogElement>("sett
 el("settings-reset").addEventListener("click", () => { el<HTMLTextAreaElement>("handoff-prompt").value = DEFAULT_HANDOFF_PROMPT; });
 el("settings-save").addEventListener("click", () => {
   const prompt = el<HTMLTextAreaElement>("handoff-prompt").value;
-  if (!prompt.trim()) { toast("交接 prompt 不能為空白。"); return; }
+  if (!prompt.trim()) { toast("The handoff prompt cannot be empty."); return; }
   host.postMessage({ type: "settings", prompt });
 });
 el("copy-prompt").addEventListener("click", () => host.postMessage({ type: "copyPrompt" }));
@@ -714,7 +714,7 @@ el("copy-prompt").addEventListener("click", () => host.postMessage({ type: "copy
 el("sketch").addEventListener("pointerdown", event => {
   const item = selected();
   if (!item || item.kind !== "stamp" || fatal || event.button !== 0 || stroke) return;
-  if ((item.strokes?.length ?? 0) >= 100) { toast("圖示最多 100 筆，請清除部分筆畫或復原後再畫。"); return; }
+  if ((item.strokes?.length ?? 0) >= 100) { toast("Icons support up to 100 strokes. Clear strokes or undo before drawing more."); return; }
   flushFields();
   const box = el("sketch").getBoundingClientRect();
   const x = Math.max(0, Math.min(1, (event.clientX - box.x) / box.width)), y = Math.max(0, Math.min(1, (event.clientY - box.y) / box.height));

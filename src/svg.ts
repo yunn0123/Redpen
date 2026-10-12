@@ -14,7 +14,14 @@ function lines(text: string, width: number, size: number): string[] {
     let line = "", used = 0;
     for (const char of Array.from(paragraph)) {
       const advance = /[\x20-\x7e]/.test(char) ? size * .65 : size;
-      if (line && used + advance > width) { result.push(line); line = ""; used = 0; }
+      if (line && used + advance > width) {
+        // Prefer word boundaries for English; long words and CJK still wrap by character.
+        const space = line.lastIndexOf(" ");
+        if (space > 0 && char !== " ") {
+          result.push(line.slice(0, space)); line = line.slice(space + 1);
+          used = Array.from(line).reduce((total, char) => total + (/[\x20-\x7e]/.test(char) ? size * .65 : size), 0);
+        } else { result.push(line); line = ""; used = 0; }
+      }
       line += char; used += advance;
     }
     result.push(line);
@@ -60,7 +67,7 @@ function shape(item: Item, assets: string[]): string {
       return `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(w, h) * .82}" fill="${color}">${xml(item.text)}</text>`;
     }
     case "text": {
-      const size = item.fontSize ?? 22, textLines = lines(item.text || "文字", w, size);
+      const size = item.fontSize ?? 22, textLines = lines(item.text || "Text", w, size);
       const first = y + h / 2 - (textLines.length - 1) * size * 1.3 / 2;
       return `<text fill="${color}" font-size="${size}" text-anchor="middle" dominant-baseline="central">${textLines.map((line, i) => `<tspan x="${x + w / 2}" y="${first + i * size * 1.3}">${xml(line)}</tspan>`).join("")}</text>`;
     }
@@ -70,14 +77,14 @@ function shape(item: Item, assets: string[]): string {
 /** Build exactly three named layers, embedding the source only once and keeping comments as SVG text. */
 export function exportSvg(input: Project, source: string, width: number, height: number, images: Record<string, { data: string; width: number; height: number }> = {}): string {
   const project = parseProject(input);
-  if (![width, height].every(Number.isSafeInteger) || width < 1 || height < 1 || width * height > MAX_PIXELS) throw new Error("原圖尺寸無效。");
-  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source) || source.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64) throw new Error("原圖必須為內嵌 PNG、JPEG 或 WebP。");
-  if (project.items.some(item => ["note", "comment"].includes(item.kind) && !item.comment.trim())) throw new Error("請先填寫所有註解。");
+  if (![width, height].every(Number.isSafeInteger) || width < 1 || height < 1 || width * height > MAX_PIXELS) throw new Error("The original image dimensions are invalid.");
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(source) || source.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64) throw new Error("The original image must be an embedded PNG, JPEG, or WebP.");
+  if (project.items.some(item => ["note", "comment"].includes(item.kind) && !item.comment.trim())) throw new Error("Fill in all annotations first.");
   const assets = projectAssets(project).filter(name => name !== project.image);
   for (const name of assets) {
     const asset = images[name];
     if (!asset || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(asset.data) || asset.data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64
-      || ![asset.width, asset.height].every(Number.isSafeInteger) || asset.width < 1 || asset.height < 1 || asset.width * asset.height > MAX_PIXELS) throw new Error("圖片元件資料無效。");
+      || ![asset.width, asset.height].every(Number.isSafeInteger) || asset.width < 1 || asset.height < 1 || asset.width * asset.height > MAX_PIXELS) throw new Error("The image object data is invalid.");
   }
   let left = 0, top = 0, right = width, bottom = height;
   for (const item of project.items) {
@@ -88,7 +95,7 @@ export function exportSvg(input: Project, source: string, width: number, height:
     right = Math.max(right, item.x + 28, item.x + padding, item.x + item.width + padding);
     bottom = Math.max(bottom, item.y + 24, item.y + padding, item.y + item.height + padding);
     if (item.kind === "text") {
-      const textHeight = lines(item.text || "文字", item.width, item.fontSize ?? 22).length * (item.fontSize ?? 22) * 1.3;
+      const textHeight = lines(item.text || "Text", item.width, item.fontSize ?? 22).length * (item.fontSize ?? 22) * 1.3;
       top = Math.min(top, item.y + (item.height - textHeight) / 2 - 3);
       bottom = Math.max(bottom, item.y + (item.height + textHeight) / 2 + 3);
     }
@@ -98,13 +105,13 @@ export function exportSvg(input: Project, source: string, width: number, height:
   let cursor = top + 30;
   const notes: string[] = [];
   for (const [index, item] of project.items.entries()) {
-    const label = item.component ? `元件註解 · ${item.component}` : kindNames[item.kind];
+    const label = item.component ? `Component note · ${item.component}` : kindNames[item.kind];
     notes.push(`<g id="annotation-${item.id}"${item.kind === "comment" ? "" : ` data-target="item-${item.id}"`}><title>${xml(item.comment)}</title>`);
-    const content = [`${index + 1}. ${label}`, item.kind === "comment" ? "無指定位置" : `x=${Math.round(item.x)}, y=${Math.round(item.y)}, w=${Math.round(item.width)}, h=${Math.round(item.height)}`];
-    if (item.text && item.text !== "placeholder") content.push(`文字／圖示：${item.text}`);
-    if (item.fontSize) content.push(`字級：${item.fontSize} px`);
-    if (item.source) content.push(`複製來源：x=${item.source.x}, y=${item.source.y}, w=${item.source.width}, h=${item.source.height}`);
-    content.push(item.comment || "未附文字需求；請參考畫面。" );
+    const content = [`${index + 1}. ${label}`, item.kind === "comment" ? "No specific location" : `x=${Math.round(item.x)}, y=${Math.round(item.y)}, w=${Math.round(item.width)}, h=${Math.round(item.height)}`];
+    if (item.text && item.text !== "placeholder") content.push(`Text / icon: ${item.text}`);
+    if (item.fontSize) content.push(`Font size: ${item.fontSize} px`);
+    if (item.source) content.push(`Copy source: x=${item.source.x}, y=${item.source.y}, w=${item.source.width}, h=${item.source.height}`);
+    content.push(item.comment || "No written request; refer to the image." );
     for (const line of lines(content.join("\n"), panelWidth - 40, 18)) {
       notes.push(`<text x="${panelX + 20}" y="${cursor}" font-size="18" fill="#202734">${xml(line)}</text>`); cursor += 27;
     }
@@ -112,26 +119,26 @@ export function exportSvg(input: Project, source: string, width: number, height:
   }
   const outputRight = project.items.length ? panelX + panelWidth : right;
   const outputBottom = Math.max(bottom, project.items.length ? cursor : bottom);
-  if ((outputRight - left) * (outputBottom - top) > MAX_PIXELS) throw new Error("匯出範圍超過 1600 萬像素，請縮小物件間距或分成多份稿件；註解不會被截斷。");
+  if ((outputRight - left) * (outputBottom - top) > MAX_PIXELS) throw new Error("The export exceeds 16 million pixels. Move objects closer together or split the draft. Annotations will not be truncated.");
   const modified = project.items.filter(item => !["note", "comment"].includes(item.kind)).map(item => `<g id="item-${item.id}">${shape(item, assets)}</g>`).join("\n");
   const markers = project.items.map((item, i) => item.kind === "comment" ? "" : `${item.kind === "note" ? `<g id="item-${item.id}">${shape(item, assets)}</g>` : ""}<g><rect x="${item.x}" y="${item.y}" width="28" height="24" rx="3" fill="${item.color}"/><text x="${item.x + 14}" y="${item.y + 17}" font-size="14" fill="white" text-anchor="middle">${i + 1}</text></g>`).join("\n");
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${outputRight - left}" height="${outputBottom - top}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
-<title>redpen</title><desc>original 是原圖；modified 是可編輯的修改物件，疊於 original 上；annotations 包含編號、元件種類與完整文字需求。座標以原圖左上角為原點。</desc>
+<title>redpen</title><desc>original contains the screenshot; modified contains editable changes over the original; annotations contains numbered markers, object types, and full requests. Coordinates are relative to the top-left corner of the original image.</desc>
 <metadata id="redpen-draft">${xml(JSON.stringify({ project, width, height }))}</metadata>
 <defs><image id="source-image" width="${width}" height="${height}" href="${source}"/>${assets.map((name, i) => `<symbol id="asset-${i}" viewBox="0 0 ${images[name].width} ${images[name].height}" preserveAspectRatio="none"><image id="raster-${i}" data-asset="${xml(name)}" width="${images[name].width}" height="${images[name].height}" href="${images[name].data}"/></symbol>`).join("")}</defs>
 <g id="original" inkscape:groupmode="layer" inkscape:label="original"><use href="#source-image"/></g>
 <g id="modified" inkscape:groupmode="layer" inkscape:label="modified">${modified}</g>
-<g id="annotations" inkscape:groupmode="layer" inkscape:label="註解">${markers}${project.items.length ? `<rect x="${panelX}" y="${top}" width="${panelWidth}" height="${outputBottom - top}" fill="#ffffff"/>` : ""}${notes.join("\n")}</g>
+<g id="annotations" inkscape:groupmode="layer" inkscape:label="annotations">${markers}${project.items.length ? `<rect x="${panelX}" y="${top}" width="${panelWidth}" height="${outputBottom - top}" fill="#ffffff"/>` : ""}${notes.join("\n")}</g>
 </svg>`;
 }
 
 /** Recover only our data envelope; imported SVG markup is never executed or rendered. */
 export function readRedpenSvg(svg: string): { project: Project; source: string; images?: Record<string, { data: string; width: number; height: number }> } {
-  if (svg.length > 75_000_000) throw new Error("SVG 稿件過大。");
+  if (svg.length > 75_000_000) throw new Error("The SVG draft is too large.");
   // Accept the original marker when reopening exports made before the rename.
   const metadata = /<metadata id="(?:redpen|ui-feedback)-draft">([^<]*)<\/metadata>/.exec(svg)?.[1];
   const source = /<image id="source-image"[^>]* href="(data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2})"\s*\/>/.exec(svg)?.[1];
-  if (!metadata || !source) throw new Error("請選擇由 redpen 匯出的 SVG 稿件。");
+  if (!metadata || !source) throw new Error("Choose an SVG draft exported by redpen.");
   const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
   const data = JSON.parse(metadata.replace(/&(amp|lt|gt|quot|apos);/g, (_, name: string) => entities[name]));
   const images: Record<string, { data: string; width: number; height: number }> = {};
@@ -140,6 +147,6 @@ export function readRedpenSvg(svg: string): { project: Project; source: string; 
     images[name] = { data: match[4], width: Number(match[2]), height: Number(match[3]) };
   }
   const project = parseProject(data.project);
-  for (const name of projectAssets(project)) if (name !== project.image && !images[name]) throw new Error("SVG 缺少圖片元件。");
+  for (const name of projectAssets(project)) if (name !== project.image && !images[name]) throw new Error("The SVG is missing an image object.");
   return { project, source, ...(Object.keys(images).length ? { images } : {}) };
 }

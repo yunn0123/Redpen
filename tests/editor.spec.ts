@@ -35,11 +35,11 @@ test("notes, masks, crop movement, history and original-size export survive view
   await drag(page, await position(page, 270, 170), await position(page, 450, 245));
   await expect(page.locator("#count")).toHaveText("1");
   await page.locator("#comment").fill("hover 此區域顯示＋；點擊後直接新增可輸入的 todo。");
-  await page.getByRole("button", { name: "遮蓋", exact: true }).click();
+  await page.getByRole("button", { name: "Cover", exact: true }).click();
   await drag(page, await position(page, 450, 250), await position(page, 635, 325));
   await expect(page.locator("#count")).toHaveText("2");
   await expect(page.locator("#color")).toHaveValue("#ffffff");
-  await page.getByRole("button", { name: "複製區塊", exact: true }).click();
+  await page.getByRole("button", { name: "Copy region", exact: true }).click();
   await drag(page, await position(page, 280, 180), await position(page, 440, 234));
   await expect(page.locator("#count")).toHaveText("3");
   const source = await page.evaluate(() => window.redpenTest.project.items[2].source);
@@ -48,16 +48,16 @@ test("notes, masks, crop movement, history and original-size export survive view
   await drag(page, await position(page, 360, 220), await position(page, 560, 420));
   const moved = await page.evaluate(() => window.redpenTest.project.items[2]);
   expect(moved.x).toBeGreaterThan(450); expect(moved.source).toEqual(source);
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[2].x)).toBeLessThan(400);
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[2].x)).toBe(moved.x);
-  await page.getByRole("button", { name: "放大", exact: true }).click();
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const output = await page.evaluate(() => window.redpenTest.exports[0]);
   expect(output.width).toBeGreaterThan(1200); expect(output.height).toBe(800); expect(output.markdown).toContain("hover 此區域顯示＋");
-  expect(output.markdown).toContain("複製來源");
+  expect(output.markdown).toContain("Copy source");
   const pixels = await page.evaluate(async png => {
     const image = new Image(); image.src = png; await image.decode();
     const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
@@ -71,21 +71,21 @@ test("notes, masks, crop movement, history and original-size export survive view
 
 test("empty notes block export; text, arrows and stamps remain editable and drafts reopen", async ({ page }) => {
   await drag(page, await position(page, 50, 110), await position(page, 180, 200));
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("請先補上區域註解");
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Fill in the region annotations");
   expect(await page.evaluate(() => window.redpenTest.exports.length)).toBe(0);
   await page.locator("#comment").fill("移除側欄的顏色標記。");
-  await page.getByRole("button", { name: "文字", exact: true }).click();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
   await page.mouse.click(...Object.values(await position(page, 680, 400)) as [number, number]);
   await page.locator("#display-text").fill("新增 tooltip");
-  await page.getByRole("button", { name: "箭頭", exact: true }).click();
+  await page.getByRole("button", { name: "Arrow", exact: true }).click();
   await drag(page, await position(page, 700, 350), await position(page, 460, 200));
-  await page.getByRole("button", { name: "圖示", exact: true }).click();
+  await page.getByRole("button", { name: "Icon", exact: true }).click();
   const point = await position(page, 700, 250); await page.mouse.click(point.x, point.y);
   await page.locator("#stamp").selectOption("?");
   await expect(page.locator("#count")).toHaveText("4");
   await page.locator("#canvas").focus(); await page.keyboard.press("ArrowRight");
-  await page.getByRole("button", { name: "刪除物件", exact: true }).click();
+  await page.getByRole("button", { name: "Delete object", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("3");
   await page.reload(); await expect(page.locator("#count")).toHaveText("3");
   await page.locator(".item-card").nth(0).click();
@@ -100,7 +100,7 @@ test("empty notes block export; text, arrows and stamps remain editable and draf
 
 /** Exercise actual key events: filling a field alone misses canvas shortcut collisions. */
 test("typing spaces and composing Chinese preserves text and the insertion point", async ({ page }) => {
-  await page.getByRole("button", { name: "文字", exact: true }).click();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
   const point = await position(page, 400, 300); await page.mouse.click(point.x, point.y);
   for (const id of ["comment", "display-text"]) {
     const field = page.locator(`#${id}`);
@@ -120,7 +120,7 @@ test("typing spaces and composing Chinese preserves text and the insertion point
     await field.dispatchEvent("compositionend", { data: "提示" });
     await field.press("Tab");
   }
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const item = await page.evaluate(() => window.redpenTest.project.items[0]);
   expect(item.comment).toBe("add a new 提示tooltip");
@@ -129,10 +129,10 @@ test("typing spaces and composing Chinese preserves text and the insertion point
 
 /** Endpoint edits must survive zoom, direction reversal, history, export and keyboard deletion. */
 test("arrow endpoints change direction and length, with undo and Delete after selection", async ({ page }) => {
-  await page.getByRole("button", { name: "箭頭", exact: true }).click();
+  await page.getByRole("button", { name: "Arrow", exact: true }).click();
   await drag(page, await position(page, 300, 300), await position(page, 600, 300));
   const original = await page.evaluate(() => window.redpenTest.project.items[0]);
-  await page.getByRole("button", { name: "放大", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await drag(page, await position(page, original.x + original.width, original.y + original.height, 1.2), await position(page, 200, 450, 1.2));
   const reversed = await page.evaluate(() => window.redpenTest.project.items[0]);
   expect(reversed.width).toBeLessThan(-90); expect(reversed.height).toBeGreaterThan(140);
@@ -143,29 +143,29 @@ test("arrow endpoints change direction and length, with undo and Delete after se
   expect(Math.abs(edited.y - 200)).toBeLessThan(3);
   expect(edited.x + edited.width).toBe(reversed.x + reversed.width);
   expect(edited.y + edited.height).toBe(reversed.y + reversed.height);
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0])).toEqual(reversed);
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0])).toEqual(edited);
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
-  expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain(`箭頭終點：x=${Math.round(edited.x + edited.width)}, y=${Math.round(edited.y + edited.height)}`);
+  expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain(`Arrow endpoint: x=${Math.round(edited.x + edited.width)}, y=${Math.round(edited.y + edited.height)}`);
   // Click the arrow after editing a field; Delete must act on the canvas without an explicit focus call.
   await page.locator("#comment").fill("調整指向");
   const middle = await position(page, edited.x + edited.width / 2, edited.y + edited.height / 2, 1.2);
   await page.mouse.click(middle.x, middle.y);
   await page.keyboard.press("Delete");
   await expect(page.locator("#count")).toHaveText("0");
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("1");
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].comment)).toBe("調整指向");
 });
 
 test("zoomed selections use source pixels and space-drag pans without moving the object", async ({ page }) => {
-  await page.getByRole("button", { name: "放大", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await drag(page, await position(page, 300, 200, 1.2), await position(page, 500, 350, 1.2));
   await page.locator("#comment").fill("放大後的註解");
-  await page.getByRole("button", { name: "選取", exact: true }).click();
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   const original = await page.evaluate(() => window.redpenTest.project.items[0]);
   expect(Math.abs(original.x - 300)).toBeLessThan(2); expect(Math.abs(original.width - 200)).toBeLessThan(2);
   await page.locator("#canvas").focus();
@@ -178,8 +178,8 @@ test("zoomed selections use source pixels and space-drag pans without moving the
 
 test("a blank canvas accepts a pasted image without a save step and rejects invalid images without losing it", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("直接貼上你的截圖", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "匯出給 Agent", exact: true })).toBeDisabled();
+  await expect(page.getByText("Paste your screenshot", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Export for Agent", exact: true })).toBeDisabled();
   await page.evaluate(async () => {
     const canvas = document.createElement("canvas"); canvas.width = 600; canvas.height = 400;
     const ctx = canvas.getContext("2d")!; ctx.fillStyle = "#66aa88"; ctx.fillRect(0, 0, 600, 400);
@@ -188,18 +188,18 @@ test("a blank canvas accepts a pasted image without a save step and rejects inva
     document.getElementById("canvas")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
   });
   await expect(page.locator("#filename")).toContainText("600 × 400");
-  await expect(page.getByRole("button", { name: "匯出給 Agent", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Export for Agent", exact: true })).toBeEnabled();
   await page.evaluate(() => {
     const clipboard = new DataTransfer(); clipboard.items.add(new File(["not an image"], "broken.png", { type: "image/png" }));
     document.getElementById("canvas")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
   });
-  await expect(page.getByRole("status")).toContainText("貼上失敗");
+  await expect(page.getByRole("status")).toContainText("Paste failed");
   await expect(page.locator("#filename")).toContainText("600 × 400");
-  await page.getByRole("button", { name: "復原", exact: true }).click();
-  await expect(page.getByText("直接貼上你的截圖", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByText("Paste your screenshot", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(page.locator("#filename")).toContainText("600 × 400");
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   await page.screenshot({ path: "test-results/pasted-canvas.png" });
 });
@@ -208,29 +208,29 @@ test("a blank canvas accepts a pasted image without a save step and rejects inva
 test("searchable UI and icon libraries create editable annotations and focus existing comments", async ({ page }) => {
   await expect(page.locator(".header")).toHaveCount(0);
   const toolbar = page.getByRole("toolbar");
-  await expect(toolbar.getByRole("button", { name: "匯入截圖", exact: true })).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "匯出給 Agent", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "UI 元件", exact: true }).click();
+  await expect(toolbar.getByRole("button", { name: "Import", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Export for Agent", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Components", exact: true }).click();
   await page.getByRole("searchbox").fill("tooltip");
   await expect(page.locator(".library-card")).toHaveCount(1);
   await page.locator(".library-card").click();
   await drag(page, await position(page, 250, 150), await position(page, 460, 250));
   await expect(page.locator("#comment")).toBeFocused();
   await page.locator("#comment").fill("hover 時顯示欄位說明");
-  await page.getByRole("button", { name: "圖示", exact: true }).click();
+  await page.getByRole("button", { name: "Icon", exact: true }).click();
   const point = await position(page, 500, 300); await page.mouse.click(point.x, point.y);
   await expect(page.locator("#stamp")).toHaveValue("placeholder");
   await page.locator(".item-card").first().click();
   await expect(page.locator("#comment")).toBeFocused();
   await expect(page.locator("#comment")).toHaveValue("hover 時顯示欄位說明");
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
-  expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain("UI 元件：Tooltip");
+  expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain("UI component: Tooltip");
   await page.reload();
   await expect(page.locator("#count")).toHaveText("2");
   await page.locator(".item-card").last().click();
   await expect(page.locator("#stamp")).toHaveValue("placeholder");
-  await page.getByRole("button", { name: "UI 元件", exact: true }).click();
+  await page.getByRole("button", { name: "Components", exact: true }).click();
   await page.screenshot({ path: "test-results/component-library.png" });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -238,8 +238,8 @@ test("searchable UI and icon libraries create editable annotations and focus exi
 
 /** Inspect PNG alpha and shifted coordinates, not just the editor's optimistic document state. */
 test("outside text exports on transparent expanded bounds and font shortcuts persist", async ({ page }) => {
-  await page.getByRole("button", { name: "縮小", exact: true }).click();
-  await page.getByRole("button", { name: "文字", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await page.getByRole("button", { name: "Text", exact: true }).click();
   const point = await position(page, -130, -70, 1 / 1.2); await page.mouse.click(point.x, point.y);
   await page.locator("#display-text").fill("新增說明");
   await page.keyboard.press("Meta+=");
@@ -248,12 +248,12 @@ test("outside text exports on transparent expanded bounds and font shortcuts per
   await expect(page.locator("#font-size")).toHaveValue("22");
   await page.keyboard.press("Control+=");
   await expect(page.locator("#font-size")).toHaveValue("24");
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const output = await page.evaluate(() => window.redpenTest.exports[0]);
   expect(output.width).toBeGreaterThan(1300); expect(output.height).toBeGreaterThan(850);
-  expect(output.markdown).toContain("字級：24 px");
-  expect(output.markdown).toContain("原圖左上角在 modified.png 的位置：x=");
+  expect(output.markdown).toContain("Font size: 24 px");
+  expect(output.markdown).toContain("The original screenshot starts in modified.png at x=");
   const pixels = await page.evaluate(async svg => {
     const document = new DOMParser().parseFromString(svg, "image/svg+xml");
     document.getElementById("annotations")!.setAttribute("display", "none");
@@ -279,32 +279,32 @@ test("outside text exports on transparent expanded bounds and font shortcuts per
 
 /** Exercise the revised lightweight tools and inspect the resulting editable SVG structure. */
 test("settings, outline and icon sketch export as three layers with readable comments", async ({ page }) => {
-  await page.getByRole("button", { name: "設定", exact: true }).hover();
+  await page.getByRole("button", { name: "Settings", exact: true }).hover();
   expect(await page.locator("#settings-open").evaluate(button => getComputedStyle(button, "::after").display)).toBe("block");
-  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator("#handoff-prompt").fill("請閱讀 {svgPath} 的三層資訊");
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("設定已儲存。");
-  await page.getByRole("button", { name: "關閉設定", exact: true }).click();
+  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Settings saved.");
+  await page.getByRole("button", { name: "Close settings", exact: true }).click();
   await page.reload();
-  await page.getByRole("button", { name: "設定", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.locator("#handoff-prompt")).toHaveValue("請閱讀 {svgPath} 的三層資訊");
-  await page.getByRole("button", { name: "關閉設定", exact: true }).click();
-  await page.getByRole("button", { name: "外框", exact: true }).click();
+  await page.getByRole("button", { name: "Close settings", exact: true }).click();
+  await page.getByRole("button", { name: "Outline", exact: true }).click();
   await drag(page, await position(page, 260, 165), await position(page, 450, 240));
   await expect(page.locator("#comment")).toHaveValue("");
-  await page.getByRole("button", { name: "圖示", exact: true }).click();
+  await page.getByRole("button", { name: "Icon", exact: true }).click();
   const point = await position(page, 700, 400); await page.mouse.click(point.x, point.y);
   await expect(page.locator("#stamp")).toHaveValue("placeholder");
   await page.locator("#comment").fill("這裡需要搜尋 icon <保留原文> & 支援點擊");
   const pad = (await page.locator("#sketch").boundingBox())!;
   await drag(page, { x: pad.x + 30, y: pad.y + 30 }, { x: pad.x + 110, y: pad.y + 90 });
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[1].strokes?.length)).toBe(1);
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[1].strokes?.length ?? 0)).toBe(0);
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[1].strokes?.length)).toBe(1);
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const svg = await page.evaluate(() => window.redpenTest.exports[0].svg);
   const structure = await page.evaluate(svg => {
@@ -322,30 +322,30 @@ test("settings, outline and icon sketch export as three layers with readable com
   expect(structure.vectors).toBe(1); expect(structure.rectangle).toBe("none"); expect(structure.rasterCount).toBe(1);
   expect(structure.notes).toContain("這裡需要搜尋 icon <保留原文> & 支援點擊");
   await writeFile("test-results/layered-example.svg", svg);
-  await page.getByRole("button", { name: "設定", exact: true }).click();
-  await page.getByRole("button", { name: "複製交接 prompt", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Copy handoff prompt", exact: true }).click();
   expect(await page.evaluate(() => window.redpenTest.copiedPrompt)).toBe("請閱讀 /demo/redpen.svg 的三層資訊");
   await page.screenshot({ path: "test-results/settings-preview.png" });
 });
 
 test("marquee selection moves and deletes a group, command-click removes one member", async ({ page }) => {
   for (const x of [300, 550]) {
-    await page.getByRole("button", { name: "遮蓋", exact: true }).click();
+    await page.getByRole("button", { name: "Cover", exact: true }).click();
     await drag(page, await position(page, x, 200), await position(page, x + 100, 300));
   }
   const before = await page.evaluate(() => window.redpenTest.project.items);
   await drag(page, await position(page, 250, 150), await position(page, 700, 350));
-  await expect(page.locator("#selection-summary")).toContainText("已選取 2");
+  await expect(page.locator("#selection-summary")).toContainText("2 objects selected");
   await drag(page, await position(page, 350, 250), await position(page, 430, 310));
   const moved = await page.evaluate(() => window.redpenTest.project.items);
   expect(moved[0].x - before[0].x).toBeGreaterThan(70);
   expect(Math.abs((moved[0].x - before[0].x) - (moved[1].x - before[1].x))).toBeLessThan(1);
   expect(Math.abs((moved[0].y - before[0].y) - (moved[1].y - before[1].y))).toBeLessThan(1);
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.deliveredProject?.items)).toEqual(before);
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.deliveredProject?.items)).toEqual(moved);
-  await expect(page.locator("#selection-summary")).toContainText("已選取 2");
+  await expect(page.locator("#selection-summary")).toContainText("2 objects selected");
   await page.keyboard.down("Meta");
   const first = await position(page, moved[0].x + 50, moved[0].y + 50); await page.mouse.click(first.x, first.y);
   await page.keyboard.up("Meta");
@@ -354,20 +354,20 @@ test("marquee selection moves and deletes a group, command-click removes one mem
   await page.keyboard.press("Delete");
   await expect(page.locator("#count")).toHaveText("1");
   expect(await page.evaluate(() => window.redpenTest.project.items[0].id)).toBe(before[0].id);
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await drag(page, await position(page, 250, 150), await position(page, 800, 450));
-  await page.getByRole("button", { name: "刪除所選物件", exact: true }).click();
+  await page.getByRole("button", { name: "Delete selected objects", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("0");
 });
 
 test("sidebar collapses and unpositioned requirements appear only in SVG annotations", async ({ page }) => {
-  await page.getByRole("button", { name: "收起需求欄", exact: true }).click();
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
   await expect(page.locator("#sidebar")).not.toBeVisible();
-  await page.getByRole("button", { name: "展開需求欄", exact: true }).click();
-  await page.getByRole("button", { name: "新增整體需求", exact: true }).click();
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
+  await page.getByRole("button", { name: "Add general request", exact: true }).click();
   await expect(page.locator("#comment")).toBeFocused();
   await page.locator("#comment").fill("所有欄位都需要鍵盤操作。");
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const svg = await page.evaluate(() => window.redpenTest.exports[0].svg);
   const content = await page.evaluate(svg => {
@@ -375,18 +375,18 @@ test("sidebar collapses and unpositioned requirements appear only in SVG annotat
     return { shapes: doc.getElementById("modified")!.children.length, text: doc.getElementById("annotations")!.textContent, targets: doc.querySelectorAll("[data-target]").length };
   }, svg);
   expect(content.shapes).toBe(0); expect(content.targets).toBe(0);
-  expect(content.text).toContain("無指定位置"); expect(content.text).toContain("所有欄位都需要鍵盤操作。");
+  expect(content.text).toContain("No specific location"); expect(content.text).toContain("所有欄位都需要鍵盤操作。");
 });
 
 test("image elements rotate and mirror; replacing the background preserves objects and old crops", async ({ page }) => {
-  await page.getByRole("button", { name: "複製區塊", exact: true }).click();
+  await page.getByRole("button", { name: "Copy region", exact: true }).click();
   await drag(page, await position(page, 280, 180), await position(page, 440, 234));
-  await page.getByRole("button", { name: "新圖片", exact: true }).click();
+  await page.getByRole("button", { name: "New image", exact: true }).click();
   await pasteRaster(page, 120, 80);
   await expect(page.locator("#image-actions")).toBeVisible();
   await expect(page.locator("#count")).toHaveText("2");
-  await page.getByRole("button", { name: "旋轉 90°", exact: true }).click();
-  await page.getByRole("button", { name: "水平鏡像", exact: true }).click();
+  await page.getByRole("button", { name: "Rotate 90°", exact: true }).click();
+  await page.getByRole("button", { name: "Flip horizontal", exact: true }).click();
   const before = await page.evaluate(() => window.redpenTest.project.items);
   expect(before[1].width).toBe(80); expect(before[1].height).toBe(120); expect(before[1].rotation).toBe(90); expect(before[1].flipX).toBe(true);
   const background = await position(page, 100, 500); await page.mouse.dblclick(background.x, background.y);
@@ -396,11 +396,11 @@ test("image elements rotate and mirror; replacing the background preserves objec
   const after = await page.evaluate(() => window.redpenTest.project.items);
   expect(after[1]).toEqual(before[1]); expect(after[0].asset).toBe("sample.png");
   expect({ ...after[0], asset: undefined }).toEqual({ ...before[0], asset: undefined });
-  await page.getByRole("button", { name: "復原", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.locator("#filename")).toContainText("1200 × 800");
-  await page.getByRole("button", { name: "重做", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(page.locator("#filename")).toContainText("640 × 480");
-  await page.getByRole("button", { name: "匯出給 Agent", exact: true }).click();
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   const pixels = await page.evaluate(async () => {
     const doc = new DOMParser().parseFromString(window.redpenTest.exports[0].svg, "image/svg+xml");
