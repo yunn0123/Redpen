@@ -10,6 +10,7 @@ playwright-report/
 # Private screenshots, feedback exports, and local credentials.
 ui-fix/
 ui-feedback.export-*/
+redpen.export-*/
 *.uifeedback.json
 *.redpen.json
 .env

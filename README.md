@@ -34,7 +34,7 @@
 
 ## 安裝與開發
 
-目前使用 VSIX 安裝：執行 `npm install`、`npm run package`，再到 VS Code 的 Extensions → **Install from VSIX…** 選擇產出的 `.vsix`。
+執行 `npm install`、`npm run package`，再到 VS Code 的 Extensions → **Install from VSIX…** 選擇產出的 `redpen.vsix`。
 更新已安裝版本後執行 **Developer: Reload Window**。
 
 開發環境：Node.js 24+。`npm run build` 後按 F5 測試插件；`npm run dev` 開啟瀏覽器預覽。
