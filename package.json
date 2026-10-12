@@ -3,8 +3,8 @@
   "displayName": "redpen",
   "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.1.6",
-  "publisher": "local-tools",
+  "version": "0.1.7",
+  "publisher": "yunn030123",
   "license": "MIT",
   "repository": {
     "type": "git",
