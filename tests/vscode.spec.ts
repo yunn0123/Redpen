@@ -4,7 +4,7 @@ import { _electron as electron } from "playwright";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { readFeedbackSvg } from "../src/svg";
+import { readRedpenSvg } from "../src/svg";
 import { deflateSync, crc32 } from "node:zlib";
 
 /** Generate a plain PNG fixture without shipping user screenshots or adding an imaging dependency. */
@@ -21,9 +21,9 @@ function screenshot(width = 800, height = 600): Buffer {
 }
 
 test("VS Code opens a draft, saves comments, undoes changes, and writes an agent export", async () => {
-  const temporary = await mkdtemp(join(tmpdir(), "ui-feedback-vscode-"));
+  const temporary = await mkdtemp(join(tmpdir(), "redpen-vscode-"));
   const workspace = join(temporary, "workspace"); await mkdir(workspace);
-  const file = join(workspace, "native.uifeedback.json");
+  const file = join(workspace, "legacy.uifeedback.json");
   await writeFile(join(workspace, "screen.png"), screenshot());
   await writeFile(file, JSON.stringify({ version: 1, image: "screen.png", items: [{ id: "native-note", kind: "note", x: 100, y: 100, width: 220, height: 120, color: "#f35e5e", text: "", comment: "原始需求" }] }, null, 2));
   const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== "ELECTRON_RUN_AS_NODE"));
@@ -63,10 +63,10 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     // Stub dialogs and clipboard writes; exercise the real host without replacing the user clipboard.
     const target = join(workspace, "handoff.svg");
     await app.evaluate(({ dialog, clipboard }, target) => {
-      (globalThis as any).feedbackDialogRequests = [];
-      clipboard.writeText = (text: string) => { (globalThis as any).feedbackPrompt = text; };
-      dialog.showSaveDialog = async () => { (globalThis as any).feedbackDialogRequests.push("save"); return { canceled: false, filePath: target }; };
-      dialog.showOpenDialog = async () => { (globalThis as any).feedbackDialogRequests.push("open"); return { canceled: true, filePaths: [] }; };
+      (globalThis as any).redpenDialogRequests = [];
+      clipboard.writeText = (text: string) => { (globalThis as any).redpenPrompt = text; };
+      dialog.showSaveDialog = async () => { (globalThis as any).redpenDialogRequests.push("save"); return { canceled: false, filePath: target }; };
+      dialog.showOpenDialog = async () => { (globalThis as any).redpenDialogRequests.push("open"); return { canceled: true, filePaths: [] }; };
     }, target);
     await frame!.getByRole("button", { name: "設定", exact: true }).click();
     await frame!.locator("#handoff-prompt").fill("請依三層修改：{svgPath}");
@@ -77,14 +77,14 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await expect(frame!.getByRole("status")).toContainText("已匯出單一 SVG");
     const svg = await readFile(target, "utf8");
     expect(svg).toContain("tooltip"); expect(svg).toContain('id="original"');
-    const restored = readFeedbackSvg(svg);
+    const restored = readRedpenSvg(svg);
     expect(restored.project.items[0].comment).toContain("tooltip");
     expect(Buffer.from(restored.source.split(",")[1], "base64")).toEqual(screenshot());
-    expect((await readdir(workspace)).sort()).toEqual(["handoff.svg", "native.uifeedback.json", "screen.png"]);
+    expect((await readdir(workspace)).sort()).toEqual(["handoff.svg", "legacy.uifeedback.json", "screen.png"]);
     await frame!.getByRole("button", { name: "設定", exact: true }).click();
     await frame!.getByRole("button", { name: "複製交接 prompt", exact: true }).click();
     await expect(frame!.getByRole("status")).toContainText("已複製交接 prompt");
-    expect(await app.evaluate(() => (globalThis as any).feedbackPrompt)).toBe(`請依三層修改：${target}`);
+    expect(await app.evaluate(() => (globalThis as any).redpenPrompt)).toBe(`請依三層修改：${target}`);
     await frame!.getByRole("button", { name: "關閉設定", exact: true }).click();
 
     // The new entry point must reach a blank canvas without an import or save dialog.
@@ -99,7 +99,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       }
       return false;
     }).toBeTruthy();
-    expect(await app.evaluate(() => (globalThis as any).feedbackDialogRequests)).toEqual(["save"]);
+    expect(await app.evaluate(() => (globalThis as any).redpenDialogRequests)).toEqual(["save"]);
     await expect(window.locator(".tab").filter({ hasText: /canvas-.*\.redpen\.json/ }).first()).toBeVisible();
     await frame!.evaluate(encoded => {
       const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
@@ -107,7 +107,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       document.getElementById("canvas")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
     }, screenshot().toString("base64"));
     await expect(frame!.locator("#filename")).toContainText("800 × 600 · 自動暫存");
-    expect(await app.evaluate(() => (globalThis as any).feedbackDialogRequests)).toEqual(["save"]);
+    expect(await app.evaluate(() => (globalThis as any).redpenDialogRequests)).toEqual(["save"]);
     const bounds = (await frame!.locator("#canvas").boundingBox())!;
     const scale = Math.max(.02, Math.min(1, (bounds.width - 64) / 800, (bounds.height - 96) / 600));
     const origin = { x: bounds.x + (bounds.width - 800 * scale) / 2, y: bounds.y + (bounds.height - 600 * scale) / 2 };
@@ -151,7 +151,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await expect(frame!.getByRole("status")).toContainText("已匯出單一 SVG");
     const handoff = await readFile(pastedTarget, "utf8");
     expect(handoff).toContain("元件註解 · Tooltip"); expect(handoff).toContain("字級：24 px");
-    const imported = readFeedbackSvg(handoff);
+    const imported = readRedpenSvg(handoff);
     expect(imported.project.items.some(item => item.x < 0)).toBe(true);
     expect(imported.project.items[2]).toMatchObject({ kind: "image", width: 80, height: 120, rotation: 90, flipX: true });
     expect(Buffer.from(imported.images![imported.project.items[2].asset!].data.split(",")[1], "base64")).toEqual(screenshot(120, 80));

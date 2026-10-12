@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { agentMarkdown, parseProject, selectionRect, type Project } from "../src/model";
-import { exportSvg, readFeedbackSvg } from "../src/svg";
+import { exportSvg, readRedpenSvg } from "../src/svg";
 
 /** Supply one valid note so each test changes only the boundary it checks. */
 function draft(): Project {
@@ -74,8 +74,10 @@ test("SVG carries independent layers, escaped text and a recoverable source with
   for (const name of ["original", "modified", "annotations"]) assert.ok(svg.includes(`id="${name}"`));
   assert.ok(svg.includes("元件註解 · Tooltip")); assert.ok(svg.includes("&lt;script&gt;"));
   assert.ok(!svg.includes("<script>"));
-  assert.deepEqual(readFeedbackSvg(svg), { project, source });
-  assert.throws(() => readFeedbackSvg('<svg><script>alert(1)</script></svg>'));
+  assert.deepEqual(readRedpenSvg(svg), { project, source });
+  assert.match(svg, /<metadata id="redpen-draft">/);
+  assert.deepEqual(readRedpenSvg(svg.replace('id="redpen-draft"', 'id="ui-feedback-draft"')), { project, source });
+  assert.throws(() => readRedpenSvg('<svg><script>alert(1)</script></svg>'));
   assert.throws(() => exportSvg(project, "https://example.com/image.png", 800, 600));
   project.items[0].x = 100_000;
   assert.throws(() => exportSvg(project, source, 800, 600), /1600/);
@@ -98,7 +100,7 @@ test("2940 by 1912 screenshots with six annotations export without the legacy PN
   }));
   const svg = exportSvg(project, "data:image/png;base64,aGVsbG8=", 2940, 1912);
   assert.match(svg, /width="3444" height="1912"/);
-  assert.equal(readFeedbackSvg(svg).project.items.length, 6);
+  assert.equal(readRedpenSvg(svg).project.items.length, 6);
 });
 
 /** Multi-image documents must remain self-contained and reject unsafe asset references. */
@@ -109,11 +111,11 @@ test("image transforms and unpositioned comments survive SVG round-trip", () => 
   const source = "data:image/png;base64,AAAA";
   const images = { "part.png": { data: source, width: 120, height: 80 } };
   const svg = exportSvg(project, source, 800, 600, images);
-  assert.deepEqual(readFeedbackSvg(svg), { project: parseProject(project), source, images });
+  assert.deepEqual(readRedpenSvg(svg), { project: parseProject(project), source, images });
   assert.match(svg, /無指定位置/);
   assert.doesNotMatch(svg, /data-target="item-general"/);
   assert.throws(() => exportSvg(project, source, 800, 600));
-  assert.throws(() => readFeedbackSvg(svg.replace('data-asset="part.png"', 'data-asset="missing.png"')));
+  assert.throws(() => readRedpenSvg(svg.replace('data-asset="part.png"', 'data-asset="missing.png"')));
   for (const asset of ["../part.png", "/part.png", "part.svg"]) {
     project.items[1].asset = asset; assert.throws(() => parseProject(project));
   }

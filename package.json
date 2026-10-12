@@ -1,9 +1,9 @@
 {
-  "name": "ui-feedback",
-  "displayName": "redpen — UI Markup",
+  "name": "redpen",
+  "displayName": "redpen — UI Markup for AI",
   "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "publisher": "yunn030123",
   "license": "MIT",
   "repository": {
@@ -26,13 +26,13 @@
   "contributes": {
     "commands": [
       {
-        "command": "uiFeedback.open",
+        "command": "redpen.open",
         "title": "redpen: Open Canvas"
       }
     ],
     "customEditors": [
       {
-        "viewType": "uiFeedback.editor",
+        "viewType": "redpen.editor",
         "displayName": "redpen",
         "selector": [
           {
@@ -48,7 +48,7 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "uiFeedback.open",
+          "command": "redpen.open",
           "when": "resourceExtname =~ /\\.(png|jpg|jpeg|webp)$/i",
           "group": "navigation"
         }

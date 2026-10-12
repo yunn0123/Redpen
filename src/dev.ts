@@ -4,7 +4,7 @@ import { DEFAULT_HANDOFF_PROMPT, agentMarkdown, parseProject, projectAssets, typ
 
 declare global {
   interface Window {
-    feedbackTest: { project: Project; deliveredProject?: Project; exports: { svg: string; png: string; markdown: string; width: number; height: number }[]; pastedImages: string[]; copiedPrompt?: string };
+    redpenTest: { project: Project; deliveredProject?: Project; exports: { svg: string; png: string; markdown: string; width: number; height: number }[]; pastedImages: string[]; copiedPrompt?: string };
   }
 }
 
@@ -27,20 +27,20 @@ function fixture(): string {
   return canvas.toDataURL("image/png");
 }
 
-const imageFiles: Record<string, string> = JSON.parse(localStorage.getItem("ui-feedback-demo-assets") ?? "{}");
+const imageFiles: Record<string, string> = JSON.parse(localStorage.getItem("redpen-demo-assets") ?? localStorage.getItem("ui-feedback-demo-assets") ?? "{}");
 imageFiles["sample.png"] ??= fixture();
 let project: Project = { version: 1, image: new URLSearchParams(location.search).has("fixture") ? "sample.png" : "", items: [] };
 try {
-  const saved = localStorage.getItem("ui-feedback-demo");
+  const saved = localStorage.getItem("redpen-demo") ?? localStorage.getItem("ui-feedback-demo");
   if (saved) project = parseProject(JSON.parse(saved));
-} catch { localStorage.removeItem("ui-feedback-demo"); }
+} catch { localStorage.removeItem("redpen-demo"); }
 let history: Project[] = [structuredClone(project)];
 let cursor = 0;
-window.feedbackTest = { project, exports: [], pastedImages: [] };
+window.redpenTest = { project, exports: [], pastedImages: [] };
 
 /** Simulate asynchronous host acknowledgements so tests can expose optimistic-update races. */
 function state(ack?: number): void {
-  window.feedbackTest.project = structuredClone(project);
+  window.redpenTest.project = structuredClone(project);
   window.postMessage({ type: "state", project: structuredClone(project), imageUri: imageFiles[project.image], assetUris: Object.fromEntries(projectAssets(project).map(name => [name, imageFiles[name]])), scratch: true, ack }, window.location.origin);
 }
 
@@ -54,10 +54,10 @@ window.acquireVsCodeApi = () => ({
         localStorage.setItem("handoff-prompt", message.prompt);
         window.postMessage({ type: "settings", prompt: message.prompt, saved: true }, location.origin); break;
       case "copyPrompt":
-        window.feedbackTest.copiedPrompt = (localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT).replaceAll("{svgPath}", "/demo/redpen.svg");
+        window.redpenTest.copiedPrompt = (localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT).replaceAll("{svgPath}", "/demo/redpen.svg");
         window.postMessage({ type: "promptCopied" }, location.origin); break;
       case "paste": {
-        window.feedbackTest.pastedImages.push(message.image);
+        window.redpenTest.pastedImages.push(message.image);
         const name = `clipboard-${crypto.randomUUID()}.png`; imageFiles[name] = message.image;
         let id: string | undefined;
         if (project.image && message.mode === "asset") {
@@ -67,17 +67,17 @@ window.acquireVsCodeApi = () => ({
           project = { ...project, image: name, items: project.items.map(item => item.kind === "crop" && !item.asset ? { ...item, asset: project.image } : item) };
         }
         history = history.slice(0, cursor + 1); history.push(structuredClone(project)); cursor++;
-        localStorage.setItem("ui-feedback-demo-assets", JSON.stringify(imageFiles));
-        localStorage.setItem("ui-feedback-demo", JSON.stringify(project)); state();
+        localStorage.setItem("redpen-demo-assets", JSON.stringify(imageFiles));
+        localStorage.setItem("redpen-demo", JSON.stringify(project)); state();
         if (id) window.postMessage({ type: "selectItem", id }, location.origin);
         break;
       }
       case "edit":
         project = parseProject(message.project); history = history.slice(0, cursor + 1); history.push(structuredClone(project)); cursor++;
-        localStorage.setItem("ui-feedback-demo", JSON.stringify(project)); state(message.revision); break;
+        localStorage.setItem("redpen-demo", JSON.stringify(project)); state(message.revision); break;
       case "undo": if (cursor > 0) { project = structuredClone(history[--cursor]); state(); } break;
       case "redo": if (cursor < history.length - 1) { project = structuredClone(history[++cursor]); state(); } break;
-      case "save": localStorage.setItem("ui-feedback-demo", JSON.stringify(project)); break;
+      case "save": localStorage.setItem("redpen-demo", JSON.stringify(project)); break;
       case "import": project = { version: 1, image: "sample.png", items: [] }; history = [structuredClone(project)]; cursor = 0; state(); break;
       case "export": {
         try {
@@ -86,7 +86,7 @@ window.acquireVsCodeApi = () => ({
           const image = new Image(); image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`; await image.decode();
           const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
           canvas.getContext("2d")!.drawImage(image, 0, 0);
-          window.feedbackTest.exports.push({ svg, png: canvas.toDataURL(), width: image.width, height: image.height, markdown: agentMarkdown(project, { ...message, width: image.width, height: image.height }) });
+          window.redpenTest.exports.push({ svg, png: canvas.toDataURL(), width: image.width, height: image.height, markdown: agentMarkdown(project, { ...message, width: image.width, height: image.height }) });
           window.postMessage({ type: "exported" }, window.location.origin);
         } catch (error) { window.postMessage({ type: "error", message: String(error) }, location.origin); }
         break;
@@ -98,5 +98,5 @@ await import("./editor/editor");
 
 /** Observe delivered state so tests cannot click future coordinates before the editor receives undo/redo. */
 window.addEventListener("message", event => {
-  if (event.data?.type === "state") window.feedbackTest.deliveredProject = structuredClone(event.data.project);
+  if (event.data?.type === "state") window.redpenTest.deliveredProject = structuredClone(event.data.project);
 });

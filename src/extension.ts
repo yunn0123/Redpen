@@ -1,11 +1,11 @@
 /** VS Code owns file access and document history; the webview only edits validated draft data. */
-import { exportSvg, readFeedbackSvg } from "./svg";
+import { exportSvg, readRedpenSvg } from "./svg";
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
 import { DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, parseProject, projectAssets, type Project } from "./model";
 
-const viewType = "uiFeedback.editor";
+const viewType = "redpen.editor";
 const encoder = new TextEncoder();
 type Screenshot = { bytes: Uint8Array; extension: string };
 
@@ -26,15 +26,15 @@ function report(error: unknown): void {
 
 /** Register the screenshot entry point and the persisted JSON editor. */
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new FeedbackEditor(context.extensionUri, vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, "canvases"), context.globalState);
+  const provider = new RedpenEditor(context.extensionUri, vscode.Uri.joinPath(context.storageUri ?? context.globalStorageUri, "canvases"), context.globalState);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(viewType, provider, { supportsMultipleEditorsPerDocument: false }),
-    vscode.commands.registerCommand("uiFeedback.open", (uri?: vscode.Uri) => provider.create(uri).catch(report)),
+    vscode.commands.registerCommand("redpen.open", (uri?: vscode.Uri) => provider.create(uri).catch(report)),
   );
 }
 
 /** Keep all filesystem operations in the extension host instead of granting the canvas broad access. */
-class FeedbackEditor implements vscode.CustomTextEditorProvider {
+class RedpenEditor implements vscode.CustomTextEditorProvider {
   /** Retain the extension directory for scoped script and stylesheet URLs. */
   constructor(private readonly extensionUri: vscode.Uri, private readonly cacheUri: vscode.Uri, private readonly settings: vscode.Memento) {}
 
@@ -63,7 +63,7 @@ class FeedbackEditor implements vscode.CustomTextEditorProvider {
     const renamed: Record<string, string> = {};
     if (source && /\.svg$/i.test(source.path)) {
       if ((await vscode.workspace.fs.stat(source)).size > 75_000_000) throw new Error("SVG 稿件過大。");
-      const imported = readFeedbackSvg(new TextDecoder().decode(await vscode.workspace.fs.readFile(source)));
+      const imported = readRedpenSvg(new TextDecoder().decode(await vscode.workspace.fs.readFile(source)));
       screenshot = pastedScreenshot(imported.source); items = imported.project.items; importedBase = imported.project.image;
       for (const [name, asset] of Object.entries(imported.images ?? {})) renamed[name] = await this.storeScreenshot(this.cacheUri, pastedScreenshot(asset.data));
     } else if (source) screenshot = await this.readScreenshot(source);

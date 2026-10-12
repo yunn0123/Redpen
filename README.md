@@ -37,6 +37,8 @@
 執行 `npm install`、`npm run package`，再到 VS Code 的 Extensions → **Install from VSIX…** 選擇產出的 `redpen.vsix`。
 更新已安裝版本後執行 **Developer: Reload Window**。
 
+新版套件 ID 為 `yunn030123.redpen`。從舊版遷移時，先將重要稿件匯出 SVG，再停用舊版、安裝新版並匯入；舊 `.uifeedback.json` 與舊 SVG 仍可讀取。
+
 開發環境：Node.js 24+。`npm run build` 後按 F5 測試插件；`npm run dev` 開啟瀏覽器預覽。
 驗證：`npm run typecheck`、`npm test`、`npm run test:e2e`、`npm run test:vscode`（需本機 VS Code）。
 
