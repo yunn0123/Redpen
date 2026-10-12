@@ -11,6 +11,7 @@ playwright-report/
 ui-fix/
 ui-feedback.export-*/
 *.uifeedback.json
+*.redpen.json
 .env
 .env.*
 !.env.example

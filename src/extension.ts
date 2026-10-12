@@ -67,7 +67,7 @@ class FeedbackEditor implements vscode.CustomTextEditorProvider {
       screenshot = pastedScreenshot(imported.source); items = imported.project.items; importedBase = imported.project.image;
       for (const [name, asset] of Object.entries(imported.images ?? {})) renamed[name] = await this.storeScreenshot(this.cacheUri, pastedScreenshot(asset.data));
     } else if (source) screenshot = await this.readScreenshot(source);
-    const target = vscode.Uri.joinPath(this.cacheUri, `canvas-${randomUUID().slice(0, 8)}.uifeedback.json`);
+    const target = vscode.Uri.joinPath(this.cacheUri, `canvas-${randomUUID().slice(0, 8)}.redpen.json`);
     const image = screenshot ? await this.storeScreenshot(this.cacheUri, screenshot) : "";
     if (importedBase) renamed[importedBase] = image;
     items = items.map(item => item.asset ? { ...item, asset: renamed[item.asset] } : item);
@@ -208,7 +208,7 @@ class FeedbackEditor implements vscode.CustomTextEditorProvider {
               images[name] = { data: `data:image/${/jpe?g/.test(asset.extension) ? "jpeg" : asset.extension};base64,${Buffer.from(asset.bytes).toString("base64")}`, width: size?.width, height: size?.height };
             }
             const svg = exportSvg(project, `data:image/${mime};base64,${Buffer.from(source.bytes).toString("base64")}`, message.sourceWidth, message.sourceHeight, images);
-            const target = await vscode.window.showSaveDialog({ filters: { "redpen SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "ui-feedback.svg"), title: "匯出三層 SVG" });
+            const target = await vscode.window.showSaveDialog({ filters: { "redpen SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "redpen.svg"), title: "匯出三層 SVG" });
             if (!target) { await webview.postMessage({ type: "exportCanceled" }); break; }
             if (target.toString() === document.uri.toString() || projectAssets(project).some(name => target.toString() === vscode.Uri.joinPath(directory, name).toString())) throw new Error("請使用不同檔名，避免覆寫圖片或稿件。");
             await vscode.workspace.fs.writeFile(target, encoder.encode(svg));

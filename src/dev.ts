@@ -54,7 +54,7 @@ window.acquireVsCodeApi = () => ({
         localStorage.setItem("handoff-prompt", message.prompt);
         window.postMessage({ type: "settings", prompt: message.prompt, saved: true }, location.origin); break;
       case "copyPrompt":
-        window.feedbackTest.copiedPrompt = (localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT).replaceAll("{svgPath}", "/demo/ui-feedback.svg");
+        window.feedbackTest.copiedPrompt = (localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT).replaceAll("{svgPath}", "/demo/redpen.svg");
         window.postMessage({ type: "promptCopied" }, location.origin); break;
       case "paste": {
         window.feedbackTest.pastedImages.push(message.image);

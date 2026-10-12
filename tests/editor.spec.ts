@@ -324,7 +324,7 @@ test("settings, outline and icon sketch export as three layers with readable com
   await writeFile("test-results/layered-example.svg", svg);
   await page.getByRole("button", { name: "設定", exact: true }).click();
   await page.getByRole("button", { name: "複製交接 prompt", exact: true }).click();
-  expect(await page.evaluate(() => window.feedbackTest.copiedPrompt)).toBe("請閱讀 /demo/ui-feedback.svg 的三層資訊");
+  expect(await page.evaluate(() => window.feedbackTest.copiedPrompt)).toBe("請閱讀 /demo/redpen.svg 的三層資訊");
   await page.screenshot({ path: "test-results/settings-preview.png" });
 });
 

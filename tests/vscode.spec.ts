@@ -100,6 +100,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       return false;
     }).toBeTruthy();
     expect(await app.evaluate(() => (globalThis as any).feedbackDialogRequests)).toEqual(["save"]);
+    await expect(window.locator(".tab").filter({ hasText: /canvas-.*\.redpen\.json/ }).first()).toBeVisible();
     await frame!.evaluate(encoded => {
       const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
       const clipboard = new DataTransfer(); clipboard.items.add(new File([bytes], "clipboard.png", { type: "image/png" }));
