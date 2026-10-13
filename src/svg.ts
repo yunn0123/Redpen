@@ -1,6 +1,6 @@
 /** Export a self-contained SVG with real vector layers, readable requirements and recoverable draft metadata. */
 import { MAX_IMAGE_BYTES, MAX_PIXELS, kindNames, parseProject, projectAssets, type Item, type Project } from "./model";
-import { iconLibrary } from "./editor/library";
+import { iconLibrary, iconLicense } from "./editor/library";
 
 /** Escape user text once at the XML boundary, including characters illegal in XML 1.0. */
 export function xml(value: string): string {
@@ -57,7 +57,7 @@ function shape(item: Item, assets: string[]): string {
     case "stamp": {
       if (item.text === "placeholder") {
         const sketch = (item.strokes ?? []).map(stroke => `<polyline points="${stroke.map((p, i) => p * (i % 2 ? h : w)).join(" ")}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
-        return `<g transform="translate(${x} ${y})"><circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) / 2}" fill="#d1d5db"/>${sketch}</g>`;
+        return `<g transform="translate(${x} ${y})">${sketch || `<circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) / 2}" fill="#d1d5db"/>`}</g>`;
       }
       const icon = iconLibrary.find(entry => `icon:${entry.id}` === item.text);
       if (icon) {
@@ -124,6 +124,7 @@ export function exportSvg(input: Project, source: string, width: number, height:
   const markers = project.items.map((item, i) => item.kind === "comment" ? "" : `${item.kind === "note" ? `<g id="item-${item.id}">${shape(item, assets)}</g>` : ""}<g><rect x="${item.x}" y="${item.y}" width="28" height="24" rx="3" fill="${item.color}"/><text x="${item.x + 14}" y="${item.y + 17}" font-size="14" fill="white" text-anchor="middle">${i + 1}</text></g>`).join("\n");
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${outputRight - left}" height="${outputBottom - top}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
 <title>redpen</title><desc>original contains the screenshot; modified contains editable changes over the original; annotations contains numbered markers, object types, and full requests. Coordinates are relative to the top-left corner of the original image.</desc>
+${project.items.some(item => item.kind === "stamp" && iconLibrary.some(icon => item.text === `icon:${icon.id}`)) ? `<metadata id="redpen-icon-license">${xml(iconLicense)}</metadata>` : ""}
 <metadata id="redpen-draft">${xml(JSON.stringify({ project, width, height }))}</metadata>
 <defs><image id="source-image" width="${width}" height="${height}" href="${source}"/>${assets.map((name, i) => `<symbol id="asset-${i}" viewBox="0 0 ${images[name].width} ${images[name].height}" preserveAspectRatio="none"><image id="raster-${i}" data-asset="${xml(name)}" width="${images[name].width}" height="${images[name].height}" href="${images[name].data}"/></symbol>`).join("")}</defs>
 <g id="original" inkscape:groupmode="layer" inkscape:label="original"><use href="#source-image"/></g>

@@ -48,8 +48,10 @@ window.acquireVsCodeApi = () => ({
   async postMessage(message: any) {
     switch (message.type) {
       case "ready":
-        window.postMessage({ type: "settings", prompt: localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT }, location.origin);
+        window.postMessage({ type: "settings", prompt: localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT, toolbarCollapsed: localStorage.getItem("toolbar-collapsed") === "true" }, location.origin);
         state(); break;
+      case "toolbarPreference":
+        localStorage.setItem("toolbar-collapsed", String(message.collapsed)); break;
       case "settings":
         localStorage.setItem("handoff-prompt", message.prompt);
         window.postMessage({ type: "settings", prompt: message.prompt, saved: true }, location.origin); break;

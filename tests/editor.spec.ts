@@ -28,6 +28,8 @@ async function pasteRaster(page: Page, width: number, height: number): Promise<v
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/?fixture"); await expect(page.locator("#filename")).toContainText("1200 × 800");
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
+  await page.getByRole("button", { name: "Fit to view", exact: true }).click();
 });
 
 test("notes, masks, crop movement, history and original-size export survive viewport changes", async ({ page }) => {
@@ -88,6 +90,7 @@ test("empty notes block export; text, arrows and stamps remain editable and draf
   await page.getByRole("button", { name: "Delete object", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("3");
   await page.reload(); await expect(page.locator("#count")).toHaveText("3");
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
   await page.locator(".item-card").nth(0).click();
   await expect(page.locator("#comment")).toHaveValue("移除側欄的顏色標記。");
   await page.locator(".item-card").nth(1).click();
@@ -227,6 +230,7 @@ test("searchable UI and icon libraries create editable annotations and focus exi
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain("UI component: Tooltip");
   await page.reload();
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("2");
   await page.locator(".item-card").last().click();
   await expect(page.locator("#stamp")).toHaveValue("placeholder");
@@ -239,8 +243,9 @@ test("searchable UI and icon libraries create editable annotations and focus exi
 /** Inspect PNG alpha and shifted coordinates, not just the editor's optimistic document state. */
 test("outside text exports on transparent expanded bounds and font shortcuts persist", async ({ page }) => {
   await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom out", exact: true }).click();
   await page.getByRole("button", { name: "Text", exact: true }).click();
-  const point = await position(page, -130, -70, 1 / 1.2); await page.mouse.click(point.x, point.y);
+  const point = await position(page, -130, -70, 1 / 1.2 ** 2); await page.mouse.click(point.x, point.y);
   await page.locator("#display-text").fill("新增說明");
   await page.keyboard.press("Meta+=");
   await expect(page.locator("#font-size")).toHaveValue("24");
@@ -272,6 +277,7 @@ test("outside text exports on transparent expanded bounds and font shortcuts per
   expect(pixels.minX).toBeGreaterThan(40); expect(pixels.maxX).toBeLessThan(180);
   expect(pixels.minY).toBeGreaterThan(10); expect(pixels.maxY).toBeLessThan(60);
   await page.reload();
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
   await page.locator(".item-card").click();
   await expect(page.locator("#font-size")).toHaveValue("24");
   await page.screenshot({ path: "test-results/outside-text.png" });
@@ -284,7 +290,7 @@ test("settings, outline and icon sketch export as three layers with readable com
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator("#handoff-prompt").fill("請閱讀 {svgPath} 的三層資訊");
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Settings saved.");
+  await expect(page.getByRole("status")).toHaveText("redpen: Settings saved.");
   await page.getByRole("button", { name: "Close settings", exact: true }).click();
   await page.reload();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -300,6 +306,7 @@ test("settings, outline and icon sketch export as three layers with readable com
   const pad = (await page.locator("#sketch").boundingBox())!;
   await drag(page, { x: pad.x + 30, y: pad.y + 30 }, { x: pad.x + 110, y: pad.y + 90 });
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[1].strokes?.length)).toBe(1);
+  expect(await page.locator("#sketch").evaluate((surface: HTMLCanvasElement) => surface.getContext("2d")!.getImageData(100, 140, 1, 1).data[3])).toBe(0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[1].strokes?.length ?? 0)).toBe(0);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
@@ -413,5 +420,110 @@ test("image elements rotate and mirror; replacing the background preserves objec
   });
   expect(pixels.top).toEqual([0, 0, 255, 255]); expect(pixels.bottom).toEqual([255, 0, 0, 255]); expect(pixels.crop).toEqual([200, 233, 223, 255]);
   await page.reload(); await expect(page.locator("#count")).toHaveText("2");
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
   await page.locator(".item-card").last().click(); await expect(page.locator("#image-actions")).toBeVisible();
+});
+
+/** Floating comments must keep text editable with the sidebar closed and follow the viewport. */
+test("floating toolbars and comments preserve typing, undo, and export with requests collapsed", async ({ page }) => {
+  await page.reload();
+  await expect(page.locator("#sidebar")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Show requests", exact: true })).toBeVisible();
+  const left = (await page.locator(".toolbar-left").boundingBox())!;
+  const right = (await page.locator(".toolbar-right").boundingBox())!;
+  expect(left.y).toBe(right.y); expect(left.x + left.width).toBeLessThan(right.x);
+  await page.getByRole("button", { name: "Annotate", exact: true }).click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  const field = page.locator("#popover-comment");
+  await expect(field).toBeFocused();
+  await expect(page.locator("#sidebar")).toBeHidden();
+  await field.pressSequentially("add a tooltip", { delay: 15 });
+  await field.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(6, 6));
+  await field.pressSequentially("new ", { delay: 15 });
+  await field.dispatchEvent("compositionstart", { data: "" });
+  await page.keyboard.insertText("提示");
+  await field.dispatchEvent("keydown", { key: " ", code: "Space", isComposing: true });
+  await field.dispatchEvent("keyup", { key: " ", code: "Space", isComposing: true });
+  await field.dispatchEvent("compositionend", { data: "提示" });
+  await page.mouse.move(20, 400);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("add a new 提示tooltip");
+  await field.press("Escape");
+  await expect(page.locator("#comment-popover")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].comment)).toBe("add a new 提示tooltip");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].comment)).toBe("");
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  const marker = page.getByRole("button", { name: "Comment 1: Region note", exact: true });
+  await marker.hover();
+  await expect(field).toHaveValue("add a new 提示tooltip");
+  await field.click();
+  await field.fill("Change this button");
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  const svg = await page.evaluate(() => window.redpenTest.exports[0].svg);
+  expect(svg).toContain("Change this button"); expect(svg).not.toContain("comment-popover");
+  await page.getByRole("button", { name: "Close comment", exact: true }).click();
+  const before = (await marker.boundingBox())!;
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect.poll(async () => (await marker.boundingBox())!.x).not.toBe(before.x);
+  await marker.hover();
+  await page.screenshot({ path: "test-results/floating-comments.png" });
+  await page.getByRole("button", { name: "More options", exact: true }).click();
+  await expect(page.locator("#sidebar")).toBeVisible();
+  await expect(page.locator("#comment")).toHaveValue("Change this button");
+  await page.locator("#comment").fill("Still typing in the sidebar");
+  await page.locator("#comment").evaluate((field: HTMLTextAreaElement) => field.setSelectionRange(5, 5));
+  await marker.hover();
+  await expect(page.locator("#comment-popover")).toBeHidden();
+  expect(await page.locator("#comment").evaluate((field: HTMLTextAreaElement) => field.selectionStart)).toBe(5);
+  await page.setViewportSize({ width: 520, height: 700 });
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Export for Agent", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.locator("#settings")).toBeVisible();
+});
+
+/** Compact controls must preserve canvas space and never obstruct object dragging on hover. */
+test("tools collapse persistently, Requests floats below actions, and only comment icons open previews", async ({ page }) => {
+  const canvas = (await page.locator("#canvas").boundingBox())!;
+  const actions = (await page.locator(".toolbar-right").boundingBox())!;
+  const sidebar = (await page.locator("#sidebar").boundingBox())!;
+  expect(sidebar.width).toBe(actions.width);
+  expect(sidebar.x).toBe(actions.x);
+  expect(sidebar.y).toBe(actions.y + actions.height);
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
+  expect((await page.locator("#canvas").boundingBox())!.width).toBe(canvas.width);
+  const zoom = (await page.locator(".zoom-controls").boundingBox())!;
+  expect(zoom.x).toBeLessThan(40); expect(zoom.height).toBeGreaterThan(zoom.width);
+  await page.getByRole("button", { name: "Arrow", exact: true }).click();
+  await page.getByRole("button", { name: "Collapse drawing tools", exact: true }).click();
+  await page.mouse.move(700, 700);
+  await expect(page.locator(".toolbar-left button:visible")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Arrow", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Arrow", exact: true }).hover();
+  await expect(page.getByRole("button", { name: "Annotate", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Annotate", exact: true }).click();
+  await page.mouse.move(700, 700);
+  await expect(page.locator(".toolbar-left button:visible")).toHaveCount(1);
+  await page.reload();
+  await page.mouse.move(700, 700);
+  await expect(page.locator(".toolbar-left button:visible")).toHaveCount(1);
+  await page.getByRole("button", { name: "Annotate", exact: true }).hover();
+  await page.getByRole("button", { name: "Keep drawing tools expanded", exact: true }).click();
+  await page.mouse.move(700, 700);
+  await expect(page.getByRole("button", { name: "Arrow", exact: true })).toBeVisible();
+  await drag(page, await position(page, 270, 170), await position(page, 320, 210));
+  await page.locator("#popover-comment").fill("Small movable item");
+  await page.getByRole("button", { name: "Close comment", exact: true }).click();
+  const point = await position(page, 290, 190);
+  await page.mouse.move(point.x, point.y);
+  await expect(page.locator("#comment-popover")).toBeHidden();
+  const before = await page.evaluate(() => window.redpenTest.project.items[0].x);
+  await drag(page, point, { x: point.x + 40, y: point.y + 20 });
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].x)).toBeGreaterThan(before);
+  await page.getByRole("button", { name: "Comment 1: Region note", exact: true }).hover();
+  await expect(page.locator("#popover-comment")).toHaveValue("Small movable item");
+  expect((await page.locator("#comment-popover").boundingBox())!.width).toBeLessThanOrEqual(240);
+  await page.screenshot({ path: "test-results/compact-controls.png" });
 });

@@ -40,7 +40,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     const quickInput = window.locator(".quick-input-widget input");
     await quickInput.fill(">View: Reopen Editor With...", { timeout: 10_000 });
     await window.keyboard.press("Enter");
-    await window.getByText("redpen", { exact: true }).first().click({ timeout: 10_000 });
+    await window.getByText("redpen Canvas", { exact: true }).first().click({ timeout: 10_000 });
     let frame = window.frames()[0];
     // The inner frame containing the bundled app can be identified independently of VS Code's wrapper URL.
     await expect.poll(async () => {
@@ -48,6 +48,21 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       return false;
     }, { timeout: 30_000 }).toBeTruthy();
     await expect(frame!.locator("#filename")).toContainText("800 × 600");
+    await expect(window.locator(".tab").filter({ hasText: "redpen Canvas 1" }).first()).toBeVisible();
+    await expect(window.getByText("redpen: Paste a screenshot, annotate changes, then export an SVG for your agent.", { exact: true })).toBeVisible();
+    await window.getByRole("button", { name: "Open guide", exact: true }).click();
+    await expect.poll(async () => {
+      for (const candidate of window.frames()) if (await candidate.getByRole("heading", { name: "Open a canvas in VS Code", exact: true }).count()) return true;
+      return false;
+    }).toBeTruthy();
+    await window.locator(".tab").filter({ hasText: "redpen Canvas 1" }).first().click();
+    await expect.poll(async () => {
+      for (const candidate of window.frames()) if (await candidate.locator("#filename").count()) { frame = candidate; return true; }
+      return false;
+    }).toBeTruthy();
+    await expect(window.getByText("redpen: Paste a screenshot, annotate changes, then export an SVG for your agent.", { exact: true })).toHaveCount(0);
+    await frame!.getByRole("button", { name: "Show requests", exact: true }).click();
+    await frame!.getByRole("button", { name: "Fit to view", exact: true }).click();
     await frame!.locator(".item-card").click();
     await frame!.locator("#comment").fill("");
     await frame!.locator("#comment").pressSequentially("點擊後新增輸入框，顯示 tooltip。", { delay: 20 });
@@ -74,10 +89,13 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await frame!.getByRole("button", { name: "Settings", exact: true }).click();
     await frame!.locator("#handoff-prompt").fill("請依三層修改：{svgPath}");
     await frame!.getByRole("button", { name: "Save settings", exact: true }).click();
-    await expect(frame!.getByRole("status")).toHaveText("Settings saved.");
+    await expect(frame!.getByRole("status")).toHaveText("redpen: Settings saved.");
     await frame!.getByRole("button", { name: "Close settings", exact: true }).click();
     await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
     await expect(frame!.getByRole("status")).toContainText("Exported one SVG");
+    await expect(window.getByText("redpen: SVG saved. Copy the handoff prompt and paste it into your agent chat.", { exact: true })).toBeVisible();
+    await window.getByRole("button", { name: "Copy handoff prompt", exact: true }).click();
+    await expect.poll(() => app.evaluate(() => (globalThis as any).redpenPrompt)).toBe(`請依三層修改：${target}`);
     const svg = await readFile(target, "utf8");
     expect(svg).toContain("tooltip"); expect(svg).toContain('id="original"');
     const restored = readRedpenSvg(svg);
@@ -103,7 +121,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       return false;
     }).toBeTruthy();
     expect(await app.evaluate(() => (globalThis as any).redpenDialogRequests)).toEqual(["save"]);
-    await expect(window.locator(".tab").filter({ hasText: /canvas-.*\.redpen\.json/ }).first()).toBeVisible();
+    await expect(window.locator(".tab").filter({ hasText: "redpen Canvas 2" }).first()).toBeVisible();
     await frame!.evaluate(encoded => {
       const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
       const clipboard = new DataTransfer(); clipboard.items.add(new File([bytes], "clipboard.png", { type: "image/png" }));
@@ -111,6 +129,8 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     }, screenshot().toString("base64"));
     await expect(frame!.locator("#filename")).toContainText("800 × 600 · Autosaved");
     expect(await app.evaluate(() => (globalThis as any).redpenDialogRequests)).toEqual(["save"]);
+    await frame!.getByRole("button", { name: "Show requests", exact: true }).click();
+    await frame!.getByRole("button", { name: "Fit to view", exact: true }).click();
     const bounds = (await frame!.locator("#canvas").boundingBox())!;
     const scale = Math.max(.02, Math.min(1, (bounds.width - 64) / 800, (bounds.height - 96) / 600));
     const origin = { x: bounds.x + (bounds.width - 800 * scale) / 2, y: bounds.y + (bounds.height - 600 * scale) / 2 };
@@ -148,6 +168,11 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
     await expect(frame!.getByRole("button", { name: "Export for Agent", exact: true })).toBeEnabled();
     expect((await readdir(workspace)).filter(name => name.endsWith(".svg"))).toHaveLength(1);
+    await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => { throw new Error("Test save unavailable"); }; });
+    await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
+    await expect(frame!.getByRole("status")).toContainText("redpen:");
+    await expect(window.locator(".notifications-toasts")).toContainText("Test save unavailable");
+    await expect(frame!.getByRole("button", { name: "Export for Agent", exact: true })).toBeEnabled();
     const pastedTarget = join(workspace, "pasted.svg");
     await app.evaluate(({ dialog }, target) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: target }); }, pastedTarget);
     await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
@@ -173,10 +198,26 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
       }
       return false;
     }).toBeTruthy();
+    await frame!.getByRole("button", { name: "Show requests", exact: true }).click();
     await frame!.locator(".item-card").first().click();
     await expect(frame!.locator("#selection-title")).toContainText("Component note · Tooltip");
     await expect(frame!.locator("#comment")).toHaveValue("直接貼圖後新增 tooltip。");
     await window.screenshot({ path: "test-results-native/vscode-preview.png" });
+    await frame!.getByRole("button", { name: "Collapse drawing tools", exact: true }).click();
+    await window.mouse.move(700, 700);
+    await expect(frame!.locator(".toolbar-left button:visible")).toHaveCount(1);
+    await window.keyboard.press("F1");
+    await quickInput.fill(">redpen: Open Canvas"); await window.keyboard.press("Enter");
+    await expect.poll(async () => {
+      for (const candidate of window.frames()) {
+        try {
+          if (await candidate.getByText("Paste your screenshot", { exact: true }).isVisible()) { frame = candidate; return true; }
+        } catch (error) { if (!candidate.isDetached()) throw error; }
+      }
+      return false;
+    }).toBeTruthy();
+    await expect(frame!.locator("#drawing-tools")).toHaveClass(/is-collapsed/);
+    await expect(window.locator(".tab").filter({ hasText: "redpen Canvas 4" }).first()).toBeVisible();
   } catch (error) {
     const window = await app.firstWindow();
     await window.screenshot({ path: "test-results-native/vscode-failure.png" });

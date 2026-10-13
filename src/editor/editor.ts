@@ -1,34 +1,16 @@
 /** A screenshot-first canvas keeps editing gestures local and sends only small document changes to VS Code. */
 import Konva from "konva";
 import { DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, kindNames, parseProject, selectionRect, type Item, type Kind, type Project, type Rect } from "../model";
-import { iconLibrary, componentLibrary } from "./library";
+import { iconLibrary, componentLibrary, toolbarIcons } from "./library";
 import "./editor.css";
 
 declare global { interface Window { acquireVsCodeApi: () => { postMessage: (message: unknown) => void } } }
 type Tool = "select" | "pan" | Kind;
 type Point = { x: number; y: number };
 const host = window.acquireVsCodeApi();
-const icons: Record<string, string> = {
-  image: '<rect x="2" y="3" width="20" height="18" rx="2"/><circle cx="8" cy="8" r="2"/><path d="m2 18 6-6 4 4 4-6 6 8"/>',
-  sidebar: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/>',
-  settings: '<path d="m9 3 1-2h4l1 2 3 2 3 1 1 4-2 2v3l1 3-3 3-3-1h-3l-2 2-4-1-1-3-2-3-2-1v-4l2-1 2-3 1-3Z"/><circle cx="12" cy="12" r="4"/>',
-  outline: '<rect x="3" y="3" width="18" height="18"/>',
-  select: '<path d="m5 3 13 9-6 1-3 6Z"/>', pan: '<path d="M8 11V6a2 2 0 0 1 4 0v5-7a2 2 0 0 1 4 0v7-5a2 2 0 0 1 4 0v8c0 5-3 7-7 7-3 0-5-2-7-5l-3-5a2 2 0 0 1 3-2l2 2Z"/>',
-  note: '<rect x="3" y="3" width="18" height="14" rx="3"/><path d="m7 17-1 4 6-4M7 8h10M7 12h6"/>',
-  cover: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m4 17 13-12M10 20 10-10"/>',
-  crop: '<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
-  arrow: '<path d="m4 20 16-16M9 4h11v11"/>', text: '<path d="M4 6V3h16v3M12 3v18M8 21h8"/>',
-  stamp: '<circle cx="12" cy="12" r="9" fill="currentColor" opacity=".5"/>',
-  fit: '<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/><rect x="8" y="8" width="8" height="8"/>',
-  upload: '<path d="M12 16V3m-5 5 5-5 5 5M3 15v6h18v-6"/>',
-  export: '<path d="M12 3v13m-5-5 5 5 5-5M3 17v4h18v-4"/>',
-  undo: '<path d="M4 9h10a6 6 0 1 1 0 12M9 4 4 9l5 5"/>', redo: '<path d="M20 9H10a6 6 0 1 0 0 12m5-17 5 5-5 5"/>',
-  trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
-};
-
 /** Icons are fixed markup; user-supplied content is always assigned through textContent or value. */
 function icon(name: string): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? ""}</svg>`;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${toolbarIcons[name] ?? ""}"/></svg>`;
 }
 
 const tools: [Tool, string, string][] = [
@@ -37,13 +19,19 @@ const tools: [Tool, string, string][] = [
 ];
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <div class="toolbar" role="toolbar" aria-label="Canvas tools">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
-    <button id="components" aria-label="Components">${icon("crop")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><span class="toolbar-spacer"></span><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export for Agent</span></button><button id="toggle-sidebar" aria-label="Hide requests" aria-expanded="true">${icon("sidebar")}</button></div>
+  <div class="floating-toolbars"><div id="drawing-tools" class="toolbar toolbar-left" role="toolbar" aria-label="Canvas tools">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
+    <button id="components" aria-label="Components">${icon("components")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><button id="collapse-tools" aria-label="Collapse drawing tools" aria-pressed="false" title="Collapse drawing tools">${icon("collapse")}</button></div><div id="right-panel"><div class="toolbar toolbar-right" role="toolbar" aria-label="Canvas actions"><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export for Agent</span></button><button id="toggle-sidebar" aria-label="Show requests" aria-expanded="false">${icon("sidebar")}</button></div></div></div>
   <main><section class="workspace" aria-label="Screenshot canvas"><div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
     <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Click the canvas and press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
     <div class="canvas-hint" id="hint">Draw a region and describe what you want to change</div>
-    <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">＋</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
-  </section><aside id="sidebar" aria-label="Requests"><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">＋</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><p id="background-hint" hidden>Background selected. Paste to replace it. Existing objects keep their positions and sizes.</p>
+    <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">${icon("minus")}</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">${icon("plus")}</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
+  <div id="comment-markers" aria-label="Canvas comments"></div>
+    <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
+      <div class="popover-heading"><strong id="popover-title"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
+      <label for="popover-comment">Request<textarea id="popover-comment" maxlength="8000" rows="2" placeholder="Describe what should change…"></textarea></label>
+      <div class="popover-footer"><small>Leave field to apply</small><button id="popover-details">More options</button></div>
+    </section>
+  </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><p id="background-hint" hidden>Background selected. Paste to replace it. Existing objects keep their positions and sizes.</p>
     <p class="aside-description">Select a region and describe its appearance or behavior.</p>
     <section id="inspector" hidden><div class="inspector-heading"><strong id="selection-title"></strong><button id="delete" class="danger" title="Delete object" aria-label="Delete object">${icon("trash")}</button></div>
       <div id="image-actions" hidden><button id="rotate-image">Rotate 90°</button><button id="flip-image-x">Flip horizontal</button><button id="flip-image-y">Flip vertical</button></div>
@@ -56,13 +44,16 @@ app.innerHTML = `
       <span class="field-hint" id="save-hint">Leave field to apply · Autosaved</span>
     </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>Give every change a place</p><small>Use Annotate, or select an object on the canvas.</small></div>
     <div class="aside-footer"><span id="filename">Original preserved · Export when ready</span></div></aside></main>
-  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">×</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
-  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">×</button></div><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results"></div></dialog>
-  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">×</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
+  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">${icon("close")}</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
+  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">${icon("close")}</button></div><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results"></div></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">${icon("close")}</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>`;
 
 /** Resolve a fixed editor element once its template has been mounted. */
 function el<T extends HTMLElement = HTMLElement>(id: string): T { return document.getElementById(id) as T; }
+
+// Keep Requests attached to its action bar without taking space from the canvas.
+el("right-panel").append(el("sidebar"));
 
 const canvas = el<HTMLDivElement>("canvas");
 Konva.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -97,10 +88,13 @@ let space = false;
 let toastTimer: ReturnType<typeof setTimeout>;
 let exporting = false;
 let fatal = false;
+let popoverId: string | undefined;
+let popoverTimer: ReturnType<typeof setTimeout> | undefined;
+const commentMarkers = new Map<string, HTMLButtonElement>();
 
 /** Keep transient feedback readable without interrupting a canvas gesture. */
 function toast(message: string): void {
-  el("toast").textContent = message;
+  el("toast").textContent = `redpen: ${message}`;
   el("toast").hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el("toast").hidden = true; }, 6000);
@@ -133,7 +127,9 @@ function transformImage(action: "rotate" | "flipX" | "flipY"): void {
 function drawSketch(): void {
   const surface = el<HTMLCanvasElement>("sketch"), ctx = surface.getContext("2d")!;
   ctx.clearRect(0, 0, surface.width, surface.height);
-  ctx.fillStyle = "#d1d5db"; ctx.beginPath(); ctx.arc(100, 80, 72, 0, Math.PI * 2); ctx.fill();
+  if (!(selected()?.strokes?.length || stroke)) {
+    ctx.fillStyle = "#d1d5db"; ctx.beginPath(); ctx.arc(100, 80, 72, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.strokeStyle = selected()?.color ?? "#f35e5e"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.lineJoin = "round";
   for (const points of [...(selected()?.strokes ?? []), ...(stroke ? [stroke.points] : [])]) {
     ctx.beginPath();
@@ -204,11 +200,132 @@ function commit(): void {
 
 /** Save edited fields before selection, export, or keyboard commands read the current draft. */
 function flushFields(): void {
+  savePopover();
   const item = selected();
   if (!item || fatal) return;
   const comment = el<HTMLTextAreaElement>("comment").value;
   const text = item.kind === "text" ? el<HTMLInputElement>("display-text").value : item.text;
   if (item.comment !== comment || item.text !== text) { item.comment = comment; item.text = text; commit(); }
+}
+
+/** Keep sidebar visibility explicit; closing it never discards pending requests. */
+function showSidebar(visible: boolean): void {
+  el("sidebar").hidden = !visible;
+  el("right-panel").classList.toggle("requests-open", visible);
+  const button = el("toggle-sidebar");
+  button.setAttribute("aria-expanded", String(visible));
+  button.setAttribute("aria-label", visible ? "Hide requests" : "Show requests");
+  button.title = button.dataset.tooltip = visible ? "Hide requests" : "Show requests";
+}
+
+/** Collapse is a remembered preference; hover and keyboard focus temporarily reveal every tool. */
+function collapseTools(collapsed: boolean): void {
+  el("drawing-tools").classList.toggle("is-collapsed", collapsed);
+  const button = el("collapse-tools");
+  button.setAttribute("aria-pressed", String(collapsed));
+  button.setAttribute("aria-label", collapsed ? "Keep drawing tools expanded" : "Collapse drawing tools");
+  button.title = button.dataset.tooltip = collapsed ? "Keep drawing tools expanded" : "Collapse drawing tools";
+}
+
+/** Save a floating request through the same document history as the sidebar. */
+function savePopover(): void {
+  const item = project?.items.find(entry => entry.id === popoverId);
+  if (!item || fatal) return;
+  const value = el<HTMLTextAreaElement>("popover-comment").value;
+  if (item.comment === value) return;
+  item.comment = value;
+  if (selectedId === item.id) el<HTMLTextAreaElement>("comment").value = value;
+  commit();
+}
+
+/** Close without losing text; Escape and the close button share this path. */
+function closePopover(): void {
+  clearTimeout(popoverTimer);
+  savePopover();
+  popoverId = undefined;
+  el("comment-popover").hidden = true;
+  commentMarkers.forEach(button => button.setAttribute("aria-expanded", "false"));
+}
+
+/** Delay dismissal so the pointer can cross from a marker into its editable card. */
+function deferPopoverClose(): void {
+  clearTimeout(popoverTimer);
+  popoverTimer = setTimeout(() => {
+    if (!el("comment-popover").contains(document.activeElement)) closePopover();
+  }, 250);
+}
+
+/** Hover previews never steal keyboard focus or replace text being actively composed. */
+function openPopover(id: string, focus = false): void {
+  if (fatal || gesture || pan || moving || marquee || space) return;
+  const field = el<HTMLTextAreaElement>("popover-comment");
+  if (!focus && document.activeElement?.matches("input, textarea, select")) return;
+  if (!focus && popoverId !== id && el("comment-popover").contains(document.activeElement)) return;
+  clearTimeout(popoverTimer);
+  if (popoverId !== id) {
+    flushFields();
+    popoverId = id;
+    const item = project?.items.find(entry => entry.id === id);
+    if (!item) { closePopover(); return; }
+    field.value = item.comment;
+  }
+  el("comment-popover").hidden = false;
+  renderComments();
+  if (focus) field.focus();
+}
+
+/** Anchor HTML comments to screenshot coordinates while keeping controls at a readable screen size. */
+function positionComments(): void {
+  const scale = scene.scaleX();
+  const nodes = new Map(scene.getChildren().map(node => [node.id(), node]));
+  for (const item of project?.items ?? []) {
+    const button = commentMarkers.get(item.id);
+    if (!button) continue;
+    const node = nodes.get(item.id);
+    const x = scene.x() + ((node?.x() ?? item.x) + Math.max(0, item.width)) * scale;
+    const y = scene.y() + ((node?.y() ?? item.y) + Math.min(0, item.height)) * scale - 32;
+    button.style.left = `${x}px`; button.style.top = `${y}px`;
+    button.hidden = x < 0 || y < 0 || x > stage.width() - 42 || y > stage.height() - 28;
+    button.setAttribute("aria-expanded", String(popoverId === item.id));
+    if (popoverId !== item.id) continue;
+    const popup = el("comment-popover");
+    const width = popup.offsetWidth, height = popup.offsetHeight;
+    const left = x + 48 + width <= stage.width() - 8 ? x + 48 : x - width - 8;
+    popup.style.left = `${Math.max(8, Math.min(stage.width() - width - 8, left))}px`;
+    popup.style.top = `${Math.max(72, Math.min(stage.height() - height - 8, y))}px`;
+  }
+}
+
+/** Reuse marker buttons across edits to preserve pointer and keyboard focus. */
+function renderComments(): void {
+  const items = project?.items ?? [];
+  for (const [id, button] of commentMarkers) {
+    if (!items.some(item => item.id === id && item.kind !== "comment")) { button.remove(); commentMarkers.delete(id); }
+  }
+  items.forEach((item, index) => {
+    if (item.kind === "comment") return;
+    let button = commentMarkers.get(item.id);
+    if (!button) {
+      button = document.createElement("button");
+      button.className = "comment-marker"; button.dataset.itemId = item.id;
+      button.innerHTML = `${icon("note")}<span></span>`;
+      button.setAttribute("aria-controls", "comment-popover");
+      button.addEventListener("mouseenter", () => openPopover(item.id));
+      button.addEventListener("mouseleave", deferPopoverClose);
+      button.addEventListener("focus", () => openPopover(item.id));
+      button.addEventListener("click", () => openPopover(item.id, true));
+      commentMarkers.set(item.id, button); el("comment-markers").append(button);
+    }
+    button.querySelector("span")!.textContent = String(index + 1);
+    button.setAttribute("aria-label", `Comment ${index + 1}: ${item.component ?? kindNames[item.kind]}`);
+  });
+  const item = items.find(entry => entry.id === popoverId);
+  if (!item) { popoverId = undefined; el("comment-popover").hidden = true; }
+  else {
+    el("popover-title").textContent = `${items.indexOf(item) + 1} · ${item.component ?? kindNames[item.kind]}`;
+    if (document.activeElement !== el("popover-comment")) el<HTMLTextAreaElement>("popover-comment").value = item.comment;
+  }
+  positionComments();
 }
 
 /** The inspector and list expose all annotations to keyboard and assistive technology users. */
@@ -281,7 +398,7 @@ function makeNode(item: Item, index: number): Konva.Group | Konva.Shape {
     case "stamp": {
       if (item.text === "placeholder") {
         const group = new Konva.Group(base);
-        group.add(new Konva.Circle({ x: item.width / 2, y: item.height / 2, radius: Math.min(item.width, item.height) / 2, fill: "#d1d5db" }));
+        if (!item.strokes?.length) group.add(new Konva.Circle({ x: item.width / 2, y: item.height / 2, radius: Math.min(item.width, item.height) / 2, fill: "#d1d5db" }));
         for (const points of item.strokes ?? []) group.add(new Konva.Line({ points: points.map((p, i) => p * (i % 2 ? item.height : item.width)), stroke: item.color, strokeWidth: 2, lineCap: "round", lineJoin: "round" }));
         return group;
       }
@@ -365,6 +482,7 @@ function render(): void {
       showSelection(selectedId ? scene.getChildren().find(child => child.id() === selectedId) as Konva.Shape : undefined);
     });
     (node as Konva.Node).on("dragstart", () => {
+      closePopover();
       moving = { anchor: item.id, start: { x: item.x, y: item.y }, positions: new Map(project!.items.filter(entry => selectedIds.has(entry.id)).map(entry => [entry.id, { x: entry.x, y: entry.y }])) };
     });
     (node as Konva.Node).on("dragmove", () => {
@@ -375,6 +493,7 @@ function render(): void {
         if (origin && child !== node) child.position({ x: origin.x + dx, y: origin.y + dy });
       }
       showSelection(selectedIds.size === 1 ? node : undefined);
+      positionComments();
     });
     (node as Konva.Node).on("dragend transformend", () => {
       if (fatal) return;
@@ -392,7 +511,7 @@ function render(): void {
     scene.add(node);
   });
   if (!backgroundSelected) showSelection(selectedId ? scene.getChildren().find(child => child.id() === selectedId) as Konva.Shape : undefined);
-  renderInspector(); layer.draw();
+  renderInspector(); renderComments(); layer.draw();
 }
 
 /** Switch interaction modes while preserving the selected object's requirements. */
@@ -422,6 +541,7 @@ function viewport(scale: number, position: Point): void {
     (handle as Konva.Shape).strokeWidth(2 / scale);
   });
   el("zoom").textContent = `${Math.round(scale * 100)}%`;
+  positionComments();
   layer.batchDraw();
 }
 
@@ -474,12 +594,17 @@ function addItem(kind: Kind, rect: Rect): void {
     ...(kind === "crop" ? { source: { ...rect }, x: rect.x + 16, y: rect.y + 16 } : {}),
   };
   project.items.push(item); selectItems([item.id]); tool = "select"; commit(); setTool("select");
-  if (kind === "note" || kind === "stamp" || kind === "comment") el<HTMLTextAreaElement>("comment").focus();
-  else if (kind === "text") { el<HTMLInputElement>("display-text").focus(); el<HTMLInputElement>("display-text").select(); }
+  if (kind === "note" && el("sidebar").hidden) openPopover(item.id, true);
+  else {
+    showSidebar(true);
+    if (kind === "note" || kind === "stamp" || kind === "comment") el<HTMLTextAreaElement>("comment").focus();
+  }
+  if (kind === "text") { el<HTMLInputElement>("display-text").focus(); el<HTMLInputElement>("display-text").select(); }
 }
 
 /** Start one creation or panning gesture; selection remains handled by object nodes. */
 stage.on("mousedown touchstart", event => {
+  closePopover();
   canvas.focus();
   if (!screenshot || !project || fatal) return;
   const mouse = event.evt as MouseEvent;
@@ -606,7 +731,7 @@ async function exportImage(): Promise<void> {
   if (!project || !screenshot || exporting || fatal) return;
   flushFields();
   const empty = project.items.find(item => ["note", "comment"].includes(item.kind) && !item.comment.trim());
-  if (empty) { selectItems([empty.id]); render(); el("comment").focus(); toast("Fill in the region annotations before exporting for your agent."); return; }
+  if (empty) { selectItems([empty.id]); render(); if (empty.kind === "comment") { showSidebar(true); el("comment").focus(); } else openPopover(empty.id, true); toast("Fill in the region annotations before exporting for your agent."); return; }
   exporting = true; el<HTMLButtonElement>("export").disabled = true;
   host.postMessage({ type: "export", sourceWidth: screenshot.naturalWidth, sourceHeight: screenshot.naturalHeight, assetSizes: Object.fromEntries([...assets].map(([name, image]) => [name, { width: image.naturalWidth, height: image.naturalHeight }])) });
 }
@@ -615,13 +740,14 @@ async function exportImage(): Promise<void> {
 window.addEventListener("message", async event => {
   const message = event.data;
   if (message?.type === "settings") {
+    if (typeof message.toolbarCollapsed === "boolean") collapseTools(message.toolbarCollapsed);
     handoffPrompt = message.prompt;
     el<HTMLTextAreaElement>("handoff-prompt").value = handoffPrompt;
     if (message.saved) toast("Settings saved.");
   } else if (message?.type === "promptCopied") {
     toast("Handoff prompt and SVG path copied.");
   } else if (message?.type === "selectItem") {
-    setTool("select"); selectItems([message.id]); render();
+    setTool("select"); selectItems([message.id]); render(); showSidebar(true);
   } else if (message?.type === "state") {
     if (typeof message.ack === "number" && message.ack < revision) return;
     const generation = ++loadGeneration;
@@ -630,7 +756,7 @@ window.addEventListener("message", async event => {
       el("save-hint").textContent = message.scratch ? "Leave field to apply · Autosaved" : "Leave field to apply · ⌘/Ctrl S to save";
       if (!next.image) {
         assets.clear(); project = next; screenshot = undefined; imageUri = ""; selectItems([]); fatal = false;
-        cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); layer.batchDraw();
+        cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); renderComments(); layer.batchDraw();
         el("empty").hidden = false; el("filename").textContent = "Paste an image to start editing";
         el<HTMLButtonElement>("export").disabled = true;
         return;
@@ -677,17 +803,29 @@ window.addEventListener("message", async event => {
 });
 
 /** Bind accessible controls to the same actions as their keyboard equivalents. */
-document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.addEventListener("click", () => setTool(button.dataset.tool as Tool)));
+document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.addEventListener("click", () => { setTool(button.dataset.tool as Tool); canvas.focus(); }));
 document.querySelectorAll<HTMLButtonElement>(".toolbar button").forEach(button => {
   button.title ||= button.getAttribute("aria-label") ?? button.textContent ?? "";
   button.dataset.tooltip = button.title;
 });
-el("toggle-sidebar").addEventListener("click", () => {
-  flushFields(); const sidebar = el("sidebar"), button = el("toggle-sidebar");
-  sidebar.hidden = !sidebar.hidden;
-  button.setAttribute("aria-expanded", String(!sidebar.hidden));
-  button.setAttribute("aria-label", sidebar.hidden ? "Show requests" : "Hide requests");
-  button.title = button.dataset.tooltip = sidebar.hidden ? "Show requests" : "Hide requests";
+el("collapse-tools").addEventListener("click", () => {
+  const collapsed = !el("drawing-tools").classList.contains("is-collapsed");
+  collapseTools(collapsed); canvas.focus();
+  host.postMessage({ type: "toolbarPreference", collapsed });
+});
+el("toggle-sidebar").addEventListener("click", () => { flushFields(); showSidebar(Boolean(el("sidebar").hidden)); });
+/** A focused popup stays open while typing, including IME composition and pointer travel. */
+el("comment-popover").addEventListener("mouseenter", () => clearTimeout(popoverTimer));
+el("comment-popover").addEventListener("mouseleave", deferPopoverClose);
+el("popover-comment").addEventListener("change", savePopover);
+el("popover-comment").addEventListener("blur", savePopover);
+el("popover-close").addEventListener("click", () => { closePopover(); canvas.focus(); });
+el("comment-popover").addEventListener("keydown", event => {
+  if (event.key === "Escape" && !event.isComposing) { event.stopPropagation(); closePopover(); canvas.focus(); }
+});
+el("popover-details").addEventListener("click", () => {
+  const id = popoverId; closePopover();
+  if (id) { setTool("select"); selectItems([id]); showSidebar(true); render(); el("comment").focus(); }
 });
 el("add-comment").addEventListener("click", () => { flushFields(); addItem("comment", { x: 0, y: 0, width: 1, height: 1 }); });
 el("delete-many").addEventListener("click", removeSelected);
@@ -790,6 +928,7 @@ new ResizeObserver(() => {
   const first = stage.width() === 1;
   stage.size({ width: Math.max(1, width), height: Math.max(1, height) });
   if (first && screenshot) fit();
+  positionComments();
 }).observe(canvas);
 setTool("note");
 el<HTMLButtonElement>("export").disabled = true;

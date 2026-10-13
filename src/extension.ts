@@ -21,7 +21,7 @@ function pastedScreenshot(value: unknown): Screenshot {
 
 /** Surface actionable errors without losing an open draft. */
 function report(error: unknown): void {
-  void vscode.window.showErrorMessage(`redpen：${error instanceof Error ? error.message : String(error)}`);
+  void vscode.window.showErrorMessage(`redpen: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 /** Register the screenshot entry point and the persisted JSON editor. */
@@ -30,11 +30,22 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(viewType, provider, { supportsMultipleEditorsPerDocument: false }),
     vscode.commands.registerCommand("redpen.open", (uri?: vscode.Uri) => provider.create(uri).catch(report)),
+    vscode.commands.registerCommand("redpen.showGuide", async () => {
+      // VSIX packaging normalizes README.md to readme.md on case-sensitive filesystems.
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(context.extensionUri);
+        const filename = entries.find(([name]) => name.toLowerCase() === "readme.md")?.[0];
+        if (!filename) throw new Error("The getting started guide is missing. Reinstall redpen and try again.");
+        await vscode.commands.executeCommand("markdown.showPreview", vscode.Uri.joinPath(context.extensionUri, filename));
+      } catch (error) { report(error); }
+    }),
   );
 }
 
 /** Keep all filesystem operations in the extension host instead of granting the canvas broad access. */
 class RedpenEditor implements vscode.CustomTextEditorProvider {
+  private readonly canvasTitles = new Map<string, string>();
+
   /** Retain the extension directory for scoped script and stylesheet URLs. */
   constructor(private readonly extensionUri: vscode.Uri, private readonly cacheUri: vscode.Uri, private readonly settings: vscode.Memento) {}
 
@@ -80,6 +91,10 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
   /** Synchronize edits through TextDocument so VS Code handles saves, undo, and hot-exit backups. */
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
     const webview = panel.webview;
+    const key = document.uri.toString();
+    if (!this.canvasTitles.has(key)) this.canvasTitles.set(key, `redpen Canvas ${this.canvasTitles.size + 1}`);
+    panel.title = this.canvasTitles.get(key)!;
+    panel.iconPath = vscode.Uri.joinPath(this.extensionUri, "docs", "images", "redpen-logo.png");
     const directory = vscode.Uri.joinPath(document.uri, "..");
     const scratch = directory.toString() === this.cacheUri.toString();
     webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist"), directory] };
@@ -168,8 +183,17 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
         if (disposed || !message || typeof message.type !== "string") return;
         switch (message.type) {
           case "ready":
-            await webview.postMessage({ type: "settings", prompt: this.settings.get("handoffPrompt", DEFAULT_HANDOFF_PROMPT) });
+            if (!this.settings.get("gettingStartedShown", false)) {
+              await this.settings.update("gettingStartedShown", true);
+              void vscode.window.showInformationMessage("redpen: Paste a screenshot, annotate changes, then export an SVG for your agent.", "Open guide").then(action => {
+                if (action) return vscode.commands.executeCommand("redpen.showGuide");
+              }).then(undefined, report);
+            }
+            await webview.postMessage({ type: "settings", prompt: this.settings.get("handoffPrompt", DEFAULT_HANDOFF_PROMPT), toolbarCollapsed: this.settings.get("toolbarCollapsed", false) });
             await sendState(); break;
+          case "toolbarPreference":
+            if (typeof message.collapsed !== "boolean") throw new Error("The toolbar preference must be on or off.");
+            await this.settings.update("toolbarCollapsed", message.collapsed); break;
           case "settings":
             if (typeof message.prompt !== "string" || !message.prompt.trim() || message.prompt.length > 4000) throw new Error("The handoff prompt must contain 1 to 4,000 characters.");
             await this.settings.update("handoffPrompt", message.prompt);
@@ -179,7 +203,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
             await vscode.env.clipboard.writeText(this.handoff(lastExport));
             await webview.postMessage({ type: "promptCopied" }); break;
           case "import": {
-            const source = (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { Screenshots: ["png", "jpg", "jpeg", "webp", "svg"] }, title: "Choose a screenshot or SVG" }))?.[0];
+            const source = (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { Screenshots: ["png", "jpg", "jpeg", "webp", "svg"] }, title: "redpen: Import screenshot or SVG" }))?.[0];
             if (source) { if (/\.svg$/i.test(source.path)) await this.create(source); else await insert(await this.readScreenshot(source)); }
             break;
           }
@@ -208,21 +232,25 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
               images[name] = { data: `data:image/${/jpe?g/.test(asset.extension) ? "jpeg" : asset.extension};base64,${Buffer.from(asset.bytes).toString("base64")}`, width: size?.width, height: size?.height };
             }
             const svg = exportSvg(project, `data:image/${mime};base64,${Buffer.from(source.bytes).toString("base64")}`, message.sourceWidth, message.sourceHeight, images);
-            const target = await vscode.window.showSaveDialog({ filters: { "redpen SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "redpen.svg"), title: "Export layered SVG" });
+            const target = await vscode.window.showSaveDialog({ filters: { "redpen SVG": ["svg"] }, defaultUri: vscode.Uri.joinPath(vscode.workspace.workspaceFolders?.[0]?.uri ?? directory, "redpen.svg"), title: "redpen: Export for Agent" });
             if (!target) { await webview.postMessage({ type: "exportCanceled" }); break; }
             if (target.toString() === document.uri.toString() || projectAssets(project).some(name => target.toString() === vscode.Uri.joinPath(directory, name).toString())) throw new Error("Use a different filename to avoid overwriting an image or draft.");
             await vscode.workspace.fs.writeFile(target, encoder.encode(svg));
             lastExport = target;
             await webview.postMessage({ type: "exported" });
-            void vscode.window.showInformationMessage("Exported one SVG with original, modified, and annotations layers.", "Copy handoff prompt").then(async action => {
-              if (action) await vscode.env.clipboard.writeText(this.handoff(target));
-            }, report);
+            void vscode.window.showInformationMessage("redpen: SVG saved. Copy the handoff prompt and paste it into your agent chat.", "Copy handoff prompt").then(async action => {
+              if (action) {
+                await vscode.env.clipboard.writeText(this.handoff(target));
+                await webview.postMessage({ type: "promptCopied" });
+              }
+            }).then(undefined, report);
             break;
           }
 
         }
       }).catch(async error => {
         await webview.postMessage({ type: "error", message: error instanceof Error ? error.message : String(error) });
+        if (message?.type !== "edit") report(error);
         if (message?.type === "edit") await sendState();
       });
     }));
@@ -243,6 +271,6 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
     const nonce = randomUUID();
     return `<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-      <link rel="stylesheet" href="${css}"><title>redpen</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
+      <link rel="stylesheet" href="${css}"><title>redpen Canvas</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
   }
 }

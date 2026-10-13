@@ -92,6 +92,18 @@ test("icon strokes are bounded normalized vectors and outline needs no comment",
   assert.ok(svg.includes('fill="none" stroke="#ff0000"'));
 });
 
+/** Catalog artwork must stay portable, licensed, and compatible with saved icon IDs. */
+test("Lucide icons retain their license and saved identity in standalone SVG exports", () => {
+  const project = draft(); project.items[0] = { ...project.items[0], kind: "stamp", text: "icon:search" };
+  const svg = exportSvg(project, "data:image/png;base64,AAAA", 800, 600);
+  assert.match(svg, /<metadata id="redpen-icon-license">/);
+  assert.match(svg, /Lucide Icons and Contributors/);
+  assert.match(svg, /Cole Bemis/);
+  assert.match(svg, /<path d="M0 0 m21 21-4.34-4.34/);
+  assert.deepEqual(readRedpenSvg(svg).project, project);
+  assert.doesNotMatch(exportSvg(draft(), "data:image/png;base64,AAAA", 800, 600), /redpen-icon-license/);
+});
+
 /** English notes should wrap at word boundaries without losing multilingual user content. */
 test("SVG notes wrap English words and preserve long tokens and CJK text", () => {
   const project = draft();
@@ -134,4 +146,16 @@ test("image transforms and unpositioned comments survive SVG round-trip", () => 
   }
   project.items[1].asset = "part.png"; project.items[1].rotation = 45;
   assert.throws(() => parseProject(project));
+});
+
+/** Sketches export strokes alone, while empty placeholders remain visible and editable. */
+test("hand-drawn icons replace the placeholder background and survive SVG round trips", () => {
+  const project = draft();
+  project.items[0] = { ...project.items[0], kind: "stamp", text: "placeholder", strokes: [[0, .5, 1, .5]] };
+  const svg = exportSvg(project, "data:image/png;base64,AAAA", 800, 600);
+  assert.ok(svg.includes("<polyline"));
+  assert.ok(!svg.includes('fill="#d1d5db"'));
+  assert.deepEqual(readRedpenSvg(svg).project, project);
+  project.items[0].strokes = [];
+  assert.ok(exportSvg(project, "data:image/png;base64,AAAA", 800, 600).includes('fill="#d1d5db"'));
 });

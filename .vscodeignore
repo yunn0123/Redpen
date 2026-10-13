@@ -18,3 +18,6 @@ redpen.export-*/**
 ui-fix/**
 AGENTS.md
 docs/images/*.prompt.txt
+
+# User-provided design instructions are not extension assets.
+redpen.svg

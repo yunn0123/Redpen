@@ -3,7 +3,7 @@
   "displayName": "redpen — UI Markup for AI",
   "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.2.2",
+  "version": "0.2.6",
   "publisher": "yunn030123",
   "license": "MIT",
   "repository": {
@@ -28,12 +28,16 @@
       {
         "command": "redpen.open",
         "title": "redpen: Open Canvas"
+      },
+      {
+        "command": "redpen.showGuide",
+        "title": "redpen: Show Getting Started"
       }
     ],
     "customEditors": [
       {
         "viewType": "redpen.editor",
-        "displayName": "redpen",
+        "displayName": "redpen Canvas",
         "selector": [
           {
             "filenamePattern": "*.redpen.json"
