@@ -10,6 +10,13 @@
 把截圖貼進 VS Code 畫布，圈出問題、寫下需求，再交給 coding agent。
 輕量、本機執行，不需要帳號或 AI API key，貼上就能開始。
 
+## 更新內容
+
+### 0.2.7
+
+- 使用後保留目前繪圖工具，可連續新增註解或圖形；需要移動物件時再切換 Select。
+- 離線 Lucide 圖示由 20 個擴充至 82 個，新增導覽、檔案、通訊、購物與裝置等圖示，可繼續編輯並匯出 SVG。
+
 ## 在 VS Code 安裝
 
 前往 [redpen 的 VS Code Marketplace 頁面](https://marketplace.visualstudio.com/items?itemName=yunn030123.redpen-ui-markup)，點擊 **Install**，依提示在 VS Code 中安裝。

@@ -10,6 +10,13 @@
 Paste a screenshot into VS Code, mark what needs to change, and hand it to your coding agent.
 Lightweight and local. No account or AI API key required. Just paste and start editing.
 
+## Updates
+
+### 0.2.7
+
+- Drawing tools stay active after use, so you can add consecutive annotations or shapes. Switch to Select to move objects.
+- Expanded the offline Lucide icon catalog from 20 to 82 icons, including navigation, files, communication, shopping, and devices. Icons remain editable and export to SVG.
+
 ## Install in VS Code
 
 Open [redpen on the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yunn030123.redpen-ui-markup), click **Install**, and open it in VS Code.

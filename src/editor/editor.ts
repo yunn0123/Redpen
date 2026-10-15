@@ -582,7 +582,7 @@ function backgroundColor(rect: Rect): string {
   } catch { return "#ffffff"; }
 }
 
-/** New elements retain source geometry so a copied component can be traced in agent notes. */
+/** Retain the active creation tool for repeated drawing and source geometry for agent notes. */
 function addItem(kind: Kind, rect: Rect): void {
   if (!project || fatal) return;
   if (project.items.length >= MAX_ITEMS) { toast(`Each draft supports up to ${MAX_ITEMS} objects.`); return; }
@@ -593,7 +593,7 @@ function addItem(kind: Kind, rect: Rect): void {
     ...(kind === "note" && pendingComponent ? { component: pendingComponent } : {}),
     ...(kind === "crop" ? { source: { ...rect }, x: rect.x + 16, y: rect.y + 16 } : {}),
   };
-  project.items.push(item); selectItems([item.id]); tool = "select"; commit(); setTool("select");
+  project.items.push(item); selectItems([item.id]); commit();
   if (kind === "note" && el("sidebar").hidden) openPopover(item.id, true);
   else {
     showSidebar(true);
@@ -667,7 +667,7 @@ function endGesture(): void {
     showSelection(selectedId ? scene.getChildren().find(child => child.id() === selectedId) as Konva.Shape : undefined);
     renderInspector(); layer.batchDraw();
   }
-  if (pan) { pan = undefined; canvas.style.cursor = tool === "pan" ? "grab" : "default"; }
+  if (pan) { pan = undefined; canvas.style.cursor = tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair"; }
   if (!gesture || !screenshot) return;
   const { start, current, kind } = gesture;
   cancelGesture();

@@ -32,6 +32,26 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole("button", { name: "Fit to view", exact: true }).click();
 });
 
+/** Repeated creation must retain each tool and save the previous object's edited requirements. */
+test("drawing tools stay active until the user explicitly selects another tool", async ({ page }) => {
+  for (const kind of ["note", "cover", "crop", "arrow", "outline", "text", "stamp"]) {
+    const button = page.locator(`[data-tool="${kind}"]`);
+    await button.click();
+    for (let index = 0; index < 2; index++) {
+      const start = await position(page, 280 + index * 240, 300);
+      if (kind === "text" || kind === "stamp") await page.mouse.click(start.x, start.y);
+      else await drag(page, start, await position(page, 410 + index * 240, 380));
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await page.locator("#comment").fill(`${kind} ${index}`);
+    }
+  }
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const items = await page.evaluate(() => window.redpenTest.project.items);
+  expect(items).toHaveLength(14);
+  for (const item of items) expect(item.comment).toMatch(new RegExp(`^${item.kind} [01]$`));
+  await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
+});
+
 test("notes, masks, crop movement, history and original-size export survive viewport changes", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await drag(page, await position(page, 270, 170), await position(page, 450, 245));
@@ -47,6 +67,7 @@ test("notes, masks, crop movement, history and original-size export survive view
   const source = await page.evaluate(() => window.redpenTest.project.items[2].source);
   // Browser pointer events round screen pixels; a fitted image can differ by up to two source pixels.
   expect(Math.abs(source!.x - 280)).toBeLessThan(2); expect(Math.abs(source!.width - 160)).toBeLessThan(2);
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   await drag(page, await position(page, 360, 220), await position(page, 560, 420));
   const moved = await page.evaluate(() => window.redpenTest.project.items[2]);
   expect(moved.x).toBeGreaterThan(450); expect(moved.source).toEqual(source);
@@ -135,6 +156,7 @@ test("arrow endpoints change direction and length, with undo and Delete after se
   await page.getByRole("button", { name: "Arrow", exact: true }).click();
   await drag(page, await position(page, 300, 300), await position(page, 600, 300));
   const original = await page.evaluate(() => window.redpenTest.project.items[0]);
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await drag(page, await position(page, original.x + original.width, original.y + original.height, 1.2), await position(page, 200, 450, 1.2));
   const reversed = await page.evaluate(() => window.redpenTest.project.items[0]);
@@ -223,17 +245,19 @@ test("searchable UI and icon libraries create editable annotations and focus exi
   await page.getByRole("button", { name: "Icon", exact: true }).click();
   const point = await position(page, 500, 300); await page.mouse.click(point.x, point.y);
   await expect(page.locator("#stamp")).toHaveValue("placeholder");
+  await page.locator("#stamp").selectOption("icon:shopping-cart");
   await page.locator(".item-card").first().click();
   await expect(page.locator("#comment")).toBeFocused();
   await expect(page.locator("#comment")).toHaveValue("hover 時顯示欄位說明");
   await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
   expect(await page.evaluate(() => window.redpenTest.exports[0].markdown)).toContain("UI component: Tooltip");
+  expect(await page.evaluate(() => window.redpenTest.exports[0].svg)).toContain("icon:shopping-cart");
   await page.reload();
   await page.getByRole("button", { name: "Show requests", exact: true }).click();
   await expect(page.locator("#count")).toHaveText("2");
   await page.locator(".item-card").last().click();
-  await expect(page.locator("#stamp")).toHaveValue("placeholder");
+  await expect(page.locator("#stamp")).toHaveValue("icon:shopping-cart");
   await page.getByRole("button", { name: "Components", exact: true }).click();
   await page.screenshot({ path: "test-results/component-library.png" });
   await page.keyboard.press("Escape");
@@ -341,6 +365,7 @@ test("marquee selection moves and deletes a group, command-click removes one mem
     await drag(page, await position(page, x, 200), await position(page, x + 100, 300));
   }
   const before = await page.evaluate(() => window.redpenTest.project.items);
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   await drag(page, await position(page, 250, 150), await position(page, 700, 350));
   await expect(page.locator("#selection-summary")).toContainText("2 objects selected");
   await drag(page, await position(page, 350, 250), await position(page, 430, 310));
@@ -520,6 +545,7 @@ test("tools collapse persistently, Requests floats below actions, and only comme
   await page.mouse.move(point.x, point.y);
   await expect(page.locator("#comment-popover")).toBeHidden();
   const before = await page.evaluate(() => window.redpenTest.project.items[0].x);
+  await page.getByRole("button", { name: "Select", exact: true }).click();
   await drag(page, point, { x: point.x + 40, y: point.y + 20 });
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].x)).toBeGreaterThan(before);
   await page.getByRole("button", { name: "Comment 1: Region note", exact: true }).hover();
