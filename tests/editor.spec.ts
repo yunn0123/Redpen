@@ -553,3 +553,39 @@ test("tools collapse persistently, Requests floats below actions, and only comme
   expect((await page.locator("#comment-popover").boundingBox())!.width).toBeLessThanOrEqual(240);
   await page.screenshot({ path: "test-results/compact-controls.png" });
 });
+
+/** New objects accept typing immediately and IME confirmation must not finish the request. */
+test("new objects focus editing and Enter finishes without interrupting Chinese composition", async ({ page }) => {
+  for (const kind of ["note", "cover", "crop", "arrow", "outline", "stamp", "text"]) {
+    await page.locator(`[data-tool="${kind}"]`).click();
+    const start = await position(page, 300, 300);
+    if (kind === "text" || kind === "stamp") await page.mouse.click(start.x, start.y);
+    else await drag(page, start, await position(page, 430, 380));
+    const field = page.locator(kind === "text" ? "#display-text" : "#comment");
+    await expect(field, kind).toBeFocused();
+    await field.pressSequentially("note arrow text ");
+    await field.dispatchEvent("compositionstart", { data: "" });
+    await page.keyboard.insertText("中文");
+    await field.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+    await expect(field).toBeFocused();
+    await field.dispatchEvent("keydown", { key: "Enter" });
+    await expect(field).toBeFocused();
+    await field.dispatchEvent("compositionend", { data: "中文" });
+    await field.dispatchEvent("keydown", { key: "Enter", keyCode: 229 });
+    await expect(field).toBeFocused();
+    await field.press("Enter");
+    await expect(page.locator("#canvas")).toBeFocused();
+    await expect(page.locator(`[data-tool="${kind}"]`)).toHaveAttribute("aria-pressed", "true");
+    const item = await page.evaluate(() => window.redpenTest.project.items.at(-1)!);
+    expect(kind === "text" ? item.text : item.comment).toContain("note arrow text 中文");
+  }
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
+  await page.locator('[data-tool="note"]').click();
+  await drag(page, await position(page, 600, 450), await position(page, 750, 550));
+  const popup = page.locator("#popover-comment");
+  await expect(popup).toBeFocused();
+  await popup.pressSequentially("first"); await popup.press("Shift+Enter");
+  await popup.pressSequentially("second"); await popup.press("Enter");
+  await expect(page.locator("#comment-popover")).toBeHidden();
+  expect(await page.evaluate(() => window.redpenTest.project.items.at(-1)!.comment)).toBe("first\nsecond");
+});

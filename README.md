@@ -10,7 +10,24 @@
 Paste a screenshot into VS Code, mark what needs to change, and hand it to your coding agent.
 Lightweight and local. No account or AI API key required. Just paste and start editing.
 
+## Quick start
+
+1. In VS Code, press **Shift+Command+P** (macOS) or **Shift+Ctrl+P** (Windows/Linux).
+2. Type **`redpen`**, select **redpen: Open Canvas**, and press **Enter**.
+3. Paste a screenshot with **Command+V / Ctrl+V** and start marking it up.
+
+![Paste a screenshot, select a region, type a request, and hand it to an agent](docs/images/workflow.gif)
+
+*English demo with the real canvas; the final agent handoff is illustrated.*
+
 ## Updates
+
+### 0.2.8
+
+- New objects focus their request field automatically; text objects focus their text field. Enter finishes editing, Shift+Enter adds a line, and Chinese IME confirmation keeps editing active.
+- Fixed the canvas stealing keyboard focus after adding text or icons. Drawing tools remain active for repeated use.
+- Exporting an SVG into a local Git repository offers to add only that file to `.gitignore`, with your approval. Already ignored or tracked files are skipped.
+- Added Command Palette quick-start steps above the workflow demo.
 
 ### 0.2.7
 
@@ -34,10 +51,6 @@ You can also open Extensions (**⌘⇧X / Ctrl+Shift+X**) in VS Code and search 
 
 On first use, a notification offers **Open guide**. Reopen this guide anytime with **redpen: Show Getting Started**.
 
-![Paste a screenshot, select a region, type a request, and hand it to an agent](docs/images/workflow.gif)
-
-*English demo with the real canvas; the final agent handoff is illustrated.*
-
 ## One file, three layers
 
 Each SVG contains **original**, **modified**, and **annotations** layers, with numbered requests beside the image.
@@ -59,6 +72,7 @@ Import it back into redpen to keep editing. The export expands to fit your objec
 
 ## Notifications & saved work
 
+- Exporting into a local Git repository offers to add that SVG to `.gitignore`. The file changes only if you choose **Add to .gitignore**; already ignored or tracked SVGs are skipped.
 - Notifications start with **redpen:**. Export success offers **Copy handoff prompt**; errors explain what to fix. Canceling the save dialog does not export a file.
 - Missed the export notification? Open the canvas **Settings → Copy handoff prompt**. You can also edit the prompt there; `{svgPath}` inserts the exported file path.
 - New canvases autosave locally. The internal `.redpen.json` file is a draft; share the exported SVG with your agent.

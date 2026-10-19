@@ -597,7 +597,7 @@ function addItem(kind: Kind, rect: Rect): void {
   if (kind === "note" && el("sidebar").hidden) openPopover(item.id, true);
   else {
     showSidebar(true);
-    if (kind === "note" || kind === "stamp" || kind === "comment") el<HTMLTextAreaElement>("comment").focus();
+    if (kind !== "text") el<HTMLTextAreaElement>("comment").focus();
   }
   if (kind === "text") { el<HTMLInputElement>("display-text").focus(); el<HTMLInputElement>("display-text").select(); }
 }
@@ -627,6 +627,8 @@ stage.on("mousedown touchstart", event => {
   flushFields();
   if (tool === "crop" && (point.x < 0 || point.y < 0 || point.x > screenshot.naturalWidth || point.y > screenshot.naturalHeight)) return;
   if (tool === "text" || tool === "stamp") {
+    // Prevent the pointer default from stealing focus back after opening the editor.
+    event.evt.preventDefault();
     addItem(tool, { ...point, width: tool === "text" ? 220 : 40, height: tool === "text" ? 70 : 40 }); return;
   }
   const preview = tool === "arrow"
@@ -820,6 +822,18 @@ el("comment-popover").addEventListener("mouseleave", deferPopoverClose);
 el("popover-comment").addEventListener("change", savePopover);
 el("popover-comment").addEventListener("blur", savePopover);
 el("popover-close").addEventListener("click", () => { closePopover(); canvas.focus(); });
+/** Enter finishes editing; IME confirmation stays in the field and Shift+Enter adds a line. */
+for (const id of ["popover-comment", "comment", "display-text"]) {
+  const field = el(id);
+  let composing = false;
+  field.addEventListener("compositionstart", () => { composing = true; });
+  field.addEventListener("compositionend", () => { composing = false; });
+  field.addEventListener("keydown", event => {
+    if (event.key !== "Enter" || event.shiftKey || composing || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault(); event.stopPropagation();
+    flushFields(); closePopover(); canvas.focus();
+  });
+}
 el("comment-popover").addEventListener("keydown", event => {
   if (event.key === "Escape" && !event.isComposing) { event.stopPropagation(); closePopover(); canvas.focus(); }
 });

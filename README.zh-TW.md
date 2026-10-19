@@ -10,7 +10,24 @@
 把截圖貼進 VS Code 畫布，圈出問題、寫下需求，再交給 coding agent。
 輕量、本機執行，不需要帳號或 AI API key，貼上就能開始。
 
+## 快速開始
+
+1. 在 VS Code 按 **Shift+Command+P**（macOS）或 **Shift+Ctrl+P**（Windows/Linux），開啟命令面板。
+2. 輸入 **`redpen`**，選擇 **redpen: Open Canvas**，按 **Enter**。
+3. 按 **Command+V / Ctrl+V** 貼上截圖，開始標註。
+
+![貼上截圖、框選區域、輸入需求，再交給 agent](docs/images/workflow.gif)
+
+*影片統一以英文呈現，使用實際畫布錄製；最後的 agent 交接畫面為示意。*
+
 ## 更新內容
+
+### 0.2.8
+
+- 新增物件後自動聚焦註解輸入框；文字物件直接編輯文字。Enter 完成輸入、Shift+Enter 換行，中文組字／選字不會提前結束編輯。
+- 修正新增文字或圖示時畫布搶走鍵盤焦點的問題，完成輸入後仍保留目前繪圖工具。
+- 匯出 SVG 到本機 Git 專案後，可同意將該檔案加入 `.gitignore`；已忽略或已追蹤的檔案不再詢問。
+- 在操作示範上方加入命令面板快速啟動步驟。
 
 ### 0.2.7
 
@@ -34,10 +51,6 @@
 
 首次使用會跳出引導通知，按 **Open guide** 開啟指南。之後可執行 **redpen: Show Getting Started** 再次查看。
 
-![貼上截圖、框選區域、輸入需求，再交給 agent](docs/images/workflow.gif)
-
-*影片統一以英文呈現，使用實際畫布錄製；最後的 agent 交接畫面為示意。*
-
 ## 一個檔案，三個圖層
 
 SVG 包含 **original 原圖、modified 修改物件、annotations 註解** 三層，編號需求直接排在畫面旁。
@@ -59,6 +72,7 @@ SVG 包含 **original 原圖、modified 修改物件、annotations 註解** 三�
 
 ## 通知與稿件
 
+- 匯出到本機 Git 專案後，可選擇 **Add to .gitignore**，只忽略該 SVG；同意後才寫入，已忽略或已追蹤的檔案不再詢問。
 - 通知統一以 **redpen:** 開頭。匯出成功可按 **Copy handoff prompt**；錯誤會提示需要修正的問題。取消儲存視窗不會匯出檔案。
 - 錯過匯出通知？到畫布 **Settings → Copy handoff prompt** 複製，也能在這裡修改 prompt；`{svgPath}` 會填入匯出檔案路徑。
 - 新畫布自動暫存在本機。內部 `.redpen.json` 是編輯稿件，交給 agent 時使用匯出的 SVG。

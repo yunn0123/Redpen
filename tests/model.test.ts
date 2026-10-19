@@ -159,3 +159,41 @@ test("hand-drawn icons replace the placeholder background and survive SVG round 
   project.items[0].strokes = [];
   assert.ok(exportSvg(project, "data:image/png;base64,AAAA", 800, 600).includes('fill="#d1d5db"'));
 });
+
+
+test("export ignore offers skip non-repositories, ignored files and tracked files", async () => {
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const { exportedIgnoreTarget, appendIgnoreRule } = await import("../src/gitignore");
+  const root = await mkdtemp(join(tmpdir(), "redpen-ignore-"));
+  const git = (...args: string[]) => promisify(execFile)("git", ["-C", root, ...args]);
+  try {
+    const file = join(root, "redpen.svg");
+    await writeFile(file, "<svg/>");
+    assert.equal(await exportedIgnoreTarget(file), undefined);
+    await git("init");
+    const candidate = await exportedIgnoreTarget(file);
+    assert.equal(candidate?.path, "redpen.svg");
+    await writeFile(join(root, ".gitignore"), appendIgnoreRule("", candidate!.path));
+    assert.equal(await exportedIgnoreTarget(file), undefined);
+    await writeFile(join(root, ".gitignore"), "");
+    await git("add", "redpen.svg");
+    assert.equal(await exportedIgnoreTarget(file), undefined);
+    await mkdir(join(root, "drafts"));
+    const path = "drafts/UI [v1]* ?.svg";
+    const special = join(root, path);
+    await writeFile(special, "<svg/>");
+    assert.equal((await exportedIgnoreTarget(special))?.path, path);
+    const original = "# keep existing rules\r\nnode_modules/";
+    const addition = appendIgnoreRule(original, path);
+    assert.ok(addition.startsWith("\r\n/"));
+    await writeFile(join(root, ".gitignore"), original + addition);
+    assert.equal(await exportedIgnoreTarget(special), undefined);
+    assert.ok((await readFile(join(root, ".gitignore"), "utf8")).startsWith(original));
+    await writeFile(join(root, "ordinary.svg"), "<svg/>");
+    assert.equal((await exportedIgnoreTarget(join(root, "ordinary.svg")))?.path, "ordinary.svg");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

@@ -1,5 +1,6 @@
 /** VS Code owns file access and document history; the webview only edits validated draft data. */
 import { exportSvg, readRedpenSvg } from "./svg";
+import { appendIgnoreRule, exportedIgnoreTarget } from "./gitignore";
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
@@ -22,6 +23,39 @@ function pastedScreenshot(value: unknown): Screenshot {
 /** Surface actionable errors without losing an open draft. */
 function report(error: unknown): void {
   void vscode.window.showErrorMessage(`redpen: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+/** Only change repository ignore rules after explicit consent; export success stays independent. */
+async function offerGitIgnore(target: vscode.Uri): Promise<void> {
+  if (target.scheme !== "file") return;
+  const candidate = await exportedIgnoreTarget(target.fsPath);
+  if (!candidate) return;
+  const action = await vscode.window.showInformationMessage(
+    `redpen: Add ${candidate.path} to this repository's .gitignore?`, "Add to .gitignore", "Not now",
+  );
+  if (action !== "Add to .gitignore") return;
+  // Recheck after the prompt in case another export or Git operation changed the rules.
+  if (!await exportedIgnoreTarget(target.fsPath)) return;
+  const uri = vscode.Uri.file(candidate.root + "/.gitignore");
+  let exists = true;
+  try { await vscode.workspace.fs.stat(uri); }
+  catch (error) {
+    if (!(error instanceof vscode.FileSystemError) || error.code !== "FileNotFound") throw error;
+    exists = false;
+  }
+  const edit = new vscode.WorkspaceEdit();
+  if (exists) {
+    const document = await vscode.workspace.openTextDocument(uri);
+    if (document.isDirty) throw new Error("Save .gitignore first, then export again to add the SVG.");
+    edit.insert(uri, document.positionAt(document.getText().length), appendIgnoreRule(document.getText(), candidate.path));
+  } else {
+    edit.createFile(uri, { overwrite: false });
+    edit.insert(uri, new vscode.Position(0, 0), appendIgnoreRule("", candidate.path));
+  }
+  if (!await vscode.workspace.applyEdit(edit) || !await (await vscode.workspace.openTextDocument(uri)).save()) {
+    throw new Error("Could not save .gitignore. The SVG was exported successfully.");
+  }
+  void vscode.window.showInformationMessage(`redpen: Added ${candidate.path} to .gitignore.`);
 }
 
 /** Register the screenshot entry point and the persisted JSON editor. */
@@ -237,6 +271,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
             if (target.toString() === document.uri.toString() || projectAssets(project).some(name => target.toString() === vscode.Uri.joinPath(directory, name).toString())) throw new Error("Use a different filename to avoid overwriting an image or draft.");
             await vscode.workspace.fs.writeFile(target, encoder.encode(svg));
             lastExport = target;
+            void offerGitIgnore(target).catch(report);
             await webview.postMessage({ type: "exported" });
             void vscode.window.showInformationMessage("redpen: SVG saved. Copy the handoff prompt and paste it into your agent chat.", "Copy handoff prompt").then(async action => {
               if (action) {
