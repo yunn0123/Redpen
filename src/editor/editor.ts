@@ -20,7 +20,7 @@ const tools: [Tool, string, string][] = [
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <div class="floating-toolbars"><div id="drawing-tools" class="toolbar toolbar-left" role="toolbar" aria-label="Canvas tools">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
-    <button id="components" aria-label="Components">${icon("components")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><button id="collapse-tools" aria-label="Collapse drawing tools" aria-pressed="false" title="Collapse drawing tools">${icon("collapse")}</button></div><div id="right-panel"><div class="toolbar toolbar-right" role="toolbar" aria-label="Canvas actions"><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export for Agent</span></button><button id="toggle-sidebar" aria-label="Show requests" aria-expanded="false">${icon("sidebar")}</button></div></div></div>
+    <button id="components" aria-label="Components">${icon("components")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><button id="collapse-tools" aria-label="Collapse drawing tools" aria-pressed="false" title="Collapse drawing tools">${icon("collapse")}</button></div><div id="right-panel"><div class="toolbar toolbar-right" role="toolbar" aria-label="Canvas actions"><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export</span></button><button id="toggle-sidebar" aria-label="Show requests" aria-expanded="false">${icon("sidebar")}</button></div></div></div>
   <main><section class="workspace" aria-label="Screenshot canvas"><div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
     <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Click the canvas and press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
     <div class="canvas-hint" id="hint">Draw a region and describe what you want to change</div>
@@ -29,7 +29,7 @@ app.innerHTML = `
     <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
       <div class="popover-heading"><strong id="popover-title"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
       <label for="popover-comment">Request<textarea id="popover-comment" maxlength="8000" rows="2" placeholder="Describe what should change…"></textarea></label>
-      <div class="popover-footer"><small>Leave field to apply</small><button id="popover-details">More options</button></div>
+      <div class="popover-footer"><small>Enter to finish<br>Shift+Enter for a new line</small><button id="popover-details">More options</button></div>
     </section>
   </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><p id="background-hint" hidden>Background selected. Paste to replace it. Existing objects keep their positions and sizes.</p>
     <p class="aside-description">Select a region and describe its appearance or behavior.</p>
@@ -40,8 +40,8 @@ app.innerHTML = `
       <label id="stamp-label" hidden>Icon<select id="stamp"><option value="placeholder">Gray circle · Icon placeholder</option><option value="+">＋ Add</option><option value="✓">✓ Done</option><option value="×">× Close</option><option value="!">! Alert</option><option value="?">? Help</option><option value="★">★ Star</option>${iconLibrary.map(entry => `<option value="icon:${entry.id}">${entry.name}</option>`).join("")}</select></label>
       <section id="sketch-panel" hidden><label>Sketch an icon<canvas id="sketch" width="200" height="160" aria-label="Icon sketch area"></canvas></label><button id="sketch-clear">Clear strokes</button><small>You can also describe the icon in the request below.</small></section>
       <label id="color-label">Color<input id="color" type="color" value="#f35e5e"></label>
-      <label for="comment">Request<textarea id="comment" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea></label>
-      <span class="field-hint" id="save-hint">Leave field to apply · Autosaved</span>
+      <label for="comment">Request<textarea id="comment" aria-describedby="save-hint" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea></label>
+      <span class="field-hint" id="save-hint">Enter to finish · Shift+Enter for a new line · Autosaved</span>
     </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>Give every change a place</p><small>Use Annotate, or select an object on the canvas.</small></div>
     <div class="aside-footer"><span id="filename">Original preserved · Export when ready</span></div></aside></main>
   <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">${icon("close")}</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
@@ -755,7 +755,7 @@ window.addEventListener("message", async event => {
     const generation = ++loadGeneration;
     try {
       const next = parseProject(message.project);
-      el("save-hint").textContent = message.scratch ? "Leave field to apply · Autosaved" : "Leave field to apply · ⌘/Ctrl S to save";
+      el("save-hint").textContent = message.scratch ? "Enter to finish · Shift+Enter for a new line · Autosaved" : "Enter to finish · Shift+Enter for a new line · ⌘/Ctrl S to save";
       if (!next.image) {
         assets.clear(); project = next; screenshot = undefined; imageUri = ""; selectItems([]); fatal = false;
         cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); renderComments(); layer.batchDraw();

@@ -589,3 +589,24 @@ test("new objects focus editing and Enter finishes without interrupting Chinese 
   await expect(page.locator("#comment-popover")).toBeHidden();
   expect(await page.evaluate(() => window.redpenTest.project.items.at(-1)!.comment)).toBe("first\nsecond");
 });
+
+
+test("narrow editor splits keep tools and export reachable while requests remain editable", async ({ page }) => {
+  for (const width of [360, 480, 800]) {
+    await page.setViewportSize({ width, height: 700 });
+    for (const button of await page.locator("#drawing-tools > button, .toolbar-right > button").all()) {
+      const bounds = (await button.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+      expect(bounds.y + bounds.height).toBeLessThan(200);
+    }
+    await expect(page.locator("#export span")).toBeVisible();
+  }
+  await page.setViewportSize({ width: 360, height: 700 });
+  await page.getByRole("button", { name: "Add general request", exact: true }).click();
+  await expect(page.locator("#comment")).toBeFocused();
+  await page.keyboard.insertText("縮小視窗仍可輸入需求");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#canvas")).toBeFocused();
+  expect(await page.evaluate(() => window.redpenTest.project.items.at(-1)!.comment)).toBe("縮小視窗仍可輸入需求");
+});

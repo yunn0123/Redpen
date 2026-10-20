@@ -22,6 +22,12 @@ Lightweight and local. No account or AI API key required. Just paste and start e
 
 ## Updates
 
+### 0.2.9
+
+- Tools wrap in narrow editor splits so every drawing tool remains reachable.
+- Added a visible Export label and clearer Requests panel spacing.
+- Updated editing hints for Enter and Shift+Enter; selection and button colors follow the VS Code theme.
+
 ### 0.2.8
 
 - New objects focus their request field automatically; text objects focus their text field. Enter finishes editing, Shift+Enter adds a line, and Chinese IME confirmation keeps editing active.
