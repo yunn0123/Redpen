@@ -423,7 +423,10 @@ test("image elements rotate and mirror; replacing the background preserves objec
   expect(before[1].width).toBe(80); expect(before[1].height).toBe(120); expect(before[1].rotation).toBe(90); expect(before[1].flipX).toBe(true);
   const background = await position(page, 100, 500); await page.mouse.dblclick(background.x, background.y);
   await expect(page.locator("#background-hint")).toBeVisible();
-  await pasteRaster(page, 640, 480);
+  const replacement = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Replace background", exact: true }).click();
+  const bytes = await page.evaluate(() => { const canvas = document.createElement("canvas"); canvas.width = 640; canvas.height = 480; return canvas.toDataURL("image/png").split(",")[1]; });
+  await (await replacement).setFiles({ name: "replacement.png", mimeType: "image/png", buffer: Buffer.from(bytes, "base64") });
   await expect(page.locator("#filename")).toContainText("640 × 480");
   const after = await page.evaluate(() => window.redpenTest.project.items);
   expect(after[1]).toEqual(before[1]); expect(after[0].asset).toBe("sample.png");
@@ -609,4 +612,315 @@ test("narrow editor splits keep tools and export reachable while requests remain
   await page.keyboard.press("Enter");
   await expect(page.locator("#canvas")).toBeFocused();
   expect(await page.evaluate(() => window.redpenTest.project.items.at(-1)!.comment)).toBe("縮小視窗仍可輸入需求");
+});
+
+
+test("requests accept pasted and uploaded reference images, export them, and retain them after reload", async ({ page }) => {
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  const field = page.locator("#popover-comment");
+  await field.fill("這裡排版可以參考該圖，保留原本功能");
+  await field.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(10, 10));
+  const data = await page.evaluate(() => {
+    const canvas = document.createElement("canvas"); canvas.width = 120; canvas.height = 80;
+    const context = canvas.getContext("2d")!; context.fillStyle = "#1234ff"; context.fillRect(0, 0, 120, 80);
+    const data = canvas.toDataURL("image/png");
+    const bytes = Uint8Array.from(atob(data.split(",")[1]), c => c.charCodeAt(0));
+    const clipboard = new DataTransfer(); clipboard.items.add(new File([bytes], "reference.png", { type: "image/png" }));
+    document.getElementById("popover-comment")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
+    return data;
+  });
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("這裡排版可以參考該圖[img1]，保留原本功能");
+  await expect(page.getByRole("button", { name: "Preview reference img1", exact: true })).toBeVisible();
+  await expect(page.locator("#count")).toHaveText("1");
+  await page.getByRole("button", { name: "Preview reference img1", exact: true }).click();
+  await expect(page.locator("#reference-preview-image")).toHaveAttribute("src", data);
+  await page.getByRole("button", { name: "Close reference preview", exact: true }).click();
+  await field.focus(); await field.press("End");
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#popover-add-reference").click();
+  await (await chooser).setFiles({ name: "reference2.png", mimeType: "image/png", buffer: Buffer.from(data.split(",")[1], "base64") });
+  await expect.poll(() => field.inputValue()).toContain("[img2]");
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].references?.length)).toBe(2);
+  await field.press("Enter");
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  const exported = await page.evaluate(() => window.redpenTest.exports[0]);
+  expect(exported.svg).toContain("Reference [img1]"); expect(exported.svg).toContain("Reference [img2]");
+  expect(exported.svg).toContain(data);
+  expect(exported.markdown).toContain("Reference [img1]");
+  await page.reload();
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
+  await page.locator("#item-list .item-card").first().click();
+  await expect(page.locator("#references .reference-row")).toHaveCount(2);
+  await page.getByRole("button", { name: "Remove reference img1", exact: true }).click();
+  await expect(page.locator("#references .reference-row")).toHaveCount(1);
+  await expect(page.locator("#comment")).not.toHaveValue(/\[img1\]/);
+  await expect(page.locator("#comment")).toHaveValue(/\[img2\]/);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.locator("#references .reference-row")).toHaveCount(2);
+  await expect(page.locator("#comment")).toHaveValue(/\[img1\]/);
+});
+
+
+test("reference upload failures leave requests editable and image numbers are scoped to each request", async ({ page }) => {
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  const field = page.locator("#comment"); await field.fill("保留這段文字");
+  const chooser = page.waitForEvent("filechooser"); await page.locator("#add-reference").click();
+  await (await chooser).setFiles({ name: "broken.png", mimeType: "image/png", buffer: Buffer.from("broken image") });
+  await expect(page.locator("#toast")).toContainText("Paste failed");
+  await expect(field).toBeFocused(); await expect(field).toHaveValue("保留這段文字");
+  expect(await page.locator("#app").evaluate((element: HTMLElement) => element.inert)).toBe(false);
+  const png = await page.evaluate(() => document.createElement("canvas").toDataURL("image/png").split(",")[1]);
+  await field.fill("x".repeat(8000));
+  const tooLong = page.waitForEvent("filechooser"); await page.locator("#add-reference").click();
+  await (await tooLong).setFiles({ name: "valid.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+  await expect(page.locator("#toast")).toContainText("Object text is too long");
+  await expect(field).toBeFocused(); await expect(field).toHaveValue("x".repeat(8000));
+  expect(await page.locator("#app").evaluate((element: HTMLElement) => element.inert)).toBe(false);
+  await field.fill("保留這段文字");
+  await page.locator('[data-tool="note"]').click();
+  await drag(page, await position(page, 500, 300), await position(page, 650, 390));
+  await field.fill("第二則需求");
+  for (const index of [0, 1]) {
+    await page.locator("#item-list .item-card").nth(index).click();
+    await field.evaluate(element => {
+      const canvas = document.createElement("canvas"); canvas.width = 24; canvas.height = 24;
+      const bytes = Uint8Array.from(atob(canvas.toDataURL("image/png").split(",")[1]), c => c.charCodeAt(0));
+      const clipboard = new DataTransfer(); clipboard.items.add(new File([bytes], "reference.png", { type: "image/png" }));
+      element.dispatchEvent(new ClipboardEvent("paste", { clipboardData: clipboard, bubbles: true, cancelable: true }));
+    });
+    await expect(field).toHaveValue(/\[img1\]/);
+    await expect(field).toBeFocused();
+  }
+  const items = await page.evaluate(() => window.redpenTest.project.items);
+  expect(items).toHaveLength(2);
+  expect(items.map(item => item.references![0].id)).toEqual([1, 1]);
+  expect(items[0].references![0].asset).not.toEqual(items[1].references![0].asset);
+});
+
+
+test("motion previews attach readable recipes to regions, persist, and can be removed", async ({ page }) => {
+  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.getByRole("tab", { name: "Motion", exact: true }).click();
+  await page.getByRole("button", { name: "Preview Slide up", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Use Slide up", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Use Slide up", exact: true }).click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  await expect(page.locator("#motion-summary")).toContainText("Slide up");
+  await page.locator("#comment").fill("這個區域出現時由下往上淡入");
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  const svg = await page.evaluate(() => window.redpenTest.exports[0].svg);
+  expect(svg).toContain("Motion: Slide up"); expect(svg).toContain("Duration: 280ms");
+  expect(svg).toContain("prefers-reduced-motion");
+  await page.reload();
+  await page.getByRole("button", { name: "Show requests", exact: true }).click();
+  await page.locator("#item-list .item-card").first().click();
+  await expect(page.locator("#motion-summary")).toContainText("Slide up");
+  await page.getByRole("button", { name: "Change motion", exact: true }).click();
+  await page.getByRole("button", { name: "Use Expand / collapse", exact: true }).click();
+  await expect(page.locator("#motion-summary")).toContainText("Expand / collapse");
+  await page.getByRole("button", { name: "Remove motion", exact: true }).click();
+  await expect(page.locator("#motion-summary")).toContainText("No motion specified");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.locator("#motion-summary")).toContainText("Expand / collapse");
+});
+
+test("toolbar drag shows insertion position and remembers order without changing the active tool", async ({ page }) => {
+  const text = page.locator('[data-tool="text"]'), select = page.locator('[data-tool="select"]');
+  const data = await page.evaluateHandle(() => new DataTransfer());
+  await text.dispatchEvent("dragstart", { dataTransfer: data });
+  const target = (await select.boundingBox())!;
+  await select.dispatchEvent("dragover", { dataTransfer: data, clientX: target.x + 2, clientY: target.y + 5 });
+  await expect(page.locator("#drawing-tools .toolbar-drop-line")).toBeVisible();
+  await select.dispatchEvent("drop", { dataTransfer: data });
+  await text.dispatchEvent("dragend", { dataTransfer: data });
+  await expect(page.locator("#drawing-tools > button").first()).toHaveAttribute("data-tool", "text");
+  await expect(page.locator('[data-tool="note"]')).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(page.locator("#drawing-tools > button").first()).toHaveAttribute("data-tool", "text");
+  await page.locator("#export").focus(); await page.keyboard.press("Alt+ArrowLeft");
+  await expect(page.locator(".toolbar-right > button").nth(2)).toHaveAttribute("id", "export");
+  await page.reload();
+  await expect(page.locator(".toolbar-right > button").nth(2)).toHaveAttribute("id", "export");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Reset toolbar order", exact: true }).click();
+  await expect(page.locator("#drawing-tools > button").first()).toHaveAttribute("data-tool", "select");
+});
+
+
+test("motion catalog separates component patterns from basics and carousels respond to navigation and drag", async ({ page }) => {
+  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.getByRole("tab", { name: "Motion", exact: true }).click();
+  await expect(page.locator(".motion-card")).toHaveCount(18);
+  await page.getByLabel("Motion category", { exact: true }).selectOption("Interactive");
+  await expect(page.locator(".motion-card")).toHaveCount(7);
+  for (const [id, name] of [["carousel", "Snap carousel"], ["carousel-parallax", "Parallax carousel"], ["coverflow", "Coverflow carousel"]]) {
+    const card = page.locator(`[data-motion="${id}"]`);
+    const widget = card.locator(".motion-widget");
+    await card.getByRole("button", { name: `${name}: next`, exact: true }).click();
+    await expect(widget).toHaveAttribute("data-index", "1");
+    await card.getByRole("button", { name: `${name}: next`, exact: true }).click();
+    await expect(card.getByRole("button", { name: `${name}: next`, exact: true })).toBeDisabled();
+    await expect(widget).toHaveAttribute("data-index", "2");
+    const stage = card.locator(".preview-stage"); await stage.scrollIntoViewIfNeeded();
+    const bounds = (await stage.boundingBox())!;
+    await drag(page, { x: bounds.x + bounds.width * .3, y: bounds.y + 55 }, { x: bounds.x + bounds.width * .8, y: bounds.y + 55 });
+    await expect(widget).toHaveAttribute("data-index", "1");
+  }
+  await page.getByLabel("Motion category", { exact: true }).selectOption("Basic");
+  await expect(page.locator(".motion-card")).toHaveCount(6);
+  await page.getByLabel("Motion category", { exact: true }).selectOption("All");
+  await page.getByRole("searchbox").fill("水平視差");
+  await expect(page.locator(".motion-card")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Use Horizontal parallax", exact: true })).toBeVisible();
+});
+
+test("scroll motion previews scrub in both directions and export progress-linked specifications", async ({ page }) => {
+  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.getByRole("tab", { name: "Motion", exact: true }).click();
+  await page.getByLabel("Motion category", { exact: true }).selectOption("Scroll");
+  await expect(page.locator(".motion-card")).toHaveCount(5);
+  for (const card of await page.locator(".motion-card").all()) {
+    const slider = card.getByRole("slider");
+    await slider.fill("100");
+    await expect(card.locator(".motion-widget")).toHaveAttribute("data-progress", "100");
+    await slider.fill("0");
+    await expect(card.locator(".motion-widget")).toHaveAttribute("data-progress", "0");
+  }
+  const parallax = page.locator('[data-motion="horizontal-parallax"]');
+  await parallax.getByRole("slider").fill("100");
+  await expect(parallax.locator(".preview-parallax-front")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -160, 0)");
+  await expect(parallax.locator(".preview-parallax-back")).toHaveCSS("transform", "matrix(1, 0, 0, 1, -56, 0)");
+  await page.getByRole("button", { name: "Use Horizontal parallax", exact: true }).click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  const svg = await page.evaluate(() => window.redpenTest.exports[0].svg);
+  const readable = svg.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  expect(readable).toContain("no fixed playback duration"); expect(readable).toContain("foreground x=-160px");
+  expect(svg).not.toContain("Duration: 0ms");
+});
+
+test("stateful component previews switch tabs, cycle cards, expand, and stop loops on close", async ({ page }) => {
+  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.getByRole("tab", { name: "Motion", exact: true }).click();
+  const tabs = page.locator('[data-motion="sliding-tabs"]');
+  await tabs.getByRole("tab", { name: "Details", exact: true }).click();
+  await expect(tabs.locator(".motion-widget")).toHaveAttribute("data-index", "1");
+  await expect(tabs.getByRole("tabpanel")).toHaveText("Details panel");
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.getByRole("tab", { name: "Activity", exact: true })).toHaveAttribute("aria-selected", "true");
+  const stack = page.locator('[data-motion="swipe-stack"]');
+  await stack.getByRole("button", { name: "Next card", exact: true }).click();
+  await expect(stack.locator(".motion-widget")).toHaveAttribute("data-index", "1");
+  const expand = page.getByRole("button", { name: "Toggle expanding card", exact: true });
+  await expand.click(); await expect(expand).toHaveAttribute("aria-expanded", "true");
+  await expand.press("Escape"); await expect(expand).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "Play marquee", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Pause marquee", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close library", exact: true }).click();
+  expect(await page.locator("#library-results").evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+});
+
+test("reduced motion keeps advanced previews static and narrow layouts keep controls reachable", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" }); await page.setViewportSize({ width: 360, height: 700 });
+  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.getByRole("tab", { name: "Motion", exact: true }).click();
+  await page.getByLabel("Motion category", { exact: true }).selectOption("Scroll");
+  for (const slider of await page.getByRole("slider").all()) await expect(slider).toBeDisabled();
+  expect(await page.locator("#library").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.getByLabel("Motion category", { exact: true }).selectOption("Interactive");
+  const marquee = page.locator('[data-motion="marquee"]');
+  await expect(marquee.getByRole("button", { name: "Play marquee", exact: true })).toBeDisabled();
+});
+
+
+/** Convert shared canvas coordinates using the actual zoom and fit across all background screens. */
+async function canvasPosition(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  const backgrounds = await page.evaluate(() => window.redpenTest.project.backgrounds!);
+  const bounds = (await page.locator("#canvas").boundingBox())!;
+  const width = Math.max(...backgrounds.map(image => image.x + image.width));
+  const height = Math.max(...backgrounds.map(image => image.y + image.height));
+  const panelWidth = (backgrounds.length > 1 || backgrounds[0].x !== 0 || backgrounds[0].y !== 0) && await page.locator("#sidebar").isVisible() ? (await page.locator("#right-panel").boundingBox())!.width + 16 : 0;
+  const visibleWidth = bounds.width - panelWidth;
+  const scale = Math.max(.02, Math.min(1, (visibleWidth - 64) / width, (bounds.height - 96) / height));
+  return { x: bounds.x + (visibleWidth - width * scale) / 2 + x * scale, y: bounds.y + (bounds.height - height * scale) / 2 + y * scale };
+}
+
+test("pasted backgrounds keep a gap and stay fixed; cross-screen notes survive deletion and the final image stays", async ({ page }) => {
+  await pasteRaster(page, 390, 844);
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(2);
+  await pasteRaster(page, 400, 900);
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(3);
+  const original = await page.evaluate(() => window.redpenTest.project.backgrounds!);
+  expect(original.map(image => [image.x, image.width, image.height])).toEqual([[0, 1200, 800], [1264, 390, 844], [1718, 400, 900]]);
+  await expect(page.locator("#count")).toHaveText("0");
+  await page.locator('[data-tool="arrow"]').click();
+  await drag(page, await canvasPosition(page, 1100, 500), await canvasPosition(page, 1400, 500));
+  await page.locator("#comment").fill("從第一頁前往第二頁");
+  await page.locator('[data-tool="note"]').click();
+  await drag(page, await canvasPosition(page, 1150, 600), await canvasPosition(page, 1400, 700));
+  await page.locator("#comment").fill("跨圖片共用的排版需求");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const annotations = await page.evaluate(() => window.redpenTest.project.items);
+  await drag(page, await canvasPosition(page, 1300, 200), await canvasPosition(page, 1400, 300));
+  expect(await page.evaluate(() => window.redpenTest.project.backgrounds)).toEqual(original);
+  const second = await canvasPosition(page, 1300, 100); await page.mouse.dblclick(second.x, second.y);
+  await expect(page.locator("#background-actions")).toBeVisible();
+  await page.getByRole("button", { name: "Delete background", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(2);
+  await expect(page.locator("#toast")).toContainText("Annotations were kept");
+  expect(await page.evaluate(() => window.redpenTest.project.items)).toEqual(annotations);
+  expect(await page.evaluate(() => window.redpenTest.project.backgrounds)).toEqual([original[0], original[2]]);
+  await page.getByRole("button", { name: "Fit to view", exact: true }).click();
+  const first = await canvasPosition(page, 100, 100); await page.mouse.dblclick(first.x, first.y);
+  await page.getByRole("button", { name: "Delete background", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(1);
+  await expect(page.locator("#filename")).toContainText("400 × 900");
+  await page.getByRole("button", { name: "Fit to view", exact: true }).click();
+  const last = await canvasPosition(page, 1800, 100); await page.mouse.dblclick(last.x, last.y);
+  await page.keyboard.press("Delete");
+  await expect(page.locator("#toast")).toContainText("At least one background image must remain");
+  expect(await page.evaluate(() => window.redpenTest.project.backgrounds)).toEqual([original[2]]);
+  expect(await page.evaluate(() => window.redpenTest.project.items)).toEqual(annotations);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(2);
+  await page.getByRole("button", { name: "Export for Agent", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  const exported = await page.evaluate(async () => {
+    const result = window.redpenTest.exports[0]; const doc = new DOMParser().parseFromString(result.svg, "image/svg+xml");
+    const image = new Image(); image.src = result.png; await image.decode();
+    const canvas = document.createElement("canvas"); canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext("2d")!; context.drawImage(image, 0, 0);
+    return { backgrounds: doc.querySelectorAll("#original [data-background]").length, gap: [...context.getImageData(1250, 50, 1, 1).data], third: [...context.getImageData(1750, 50, 1, 1).data] };
+  });
+  expect(exported.backgrounds).toBe(2); expect(exported.gap).toEqual([0, 0, 0, 0]); expect(exported.third).toEqual([255, 0, 0, 255]);
+  await page.reload();
+  expect(await page.evaluate(() => window.redpenTest.project.backgrounds)).toEqual([original[0], original[2]]);
+});
+
+test("copy regions use the selected background and replacing that background preserves notes and copied pixels", async ({ page }) => {
+  await pasteRaster(page, 390, 844);
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(2);
+  await page.getByRole("button", { name: "Copy region", exact: true }).click();
+  await drag(page, await canvasPosition(page, 1300, 100), await canvasPosition(page, 1400, 200));
+  const crop = await page.evaluate(() => window.redpenTest.project.items[0]);
+  const background = await page.evaluate(() => window.redpenTest.project.backgrounds![1]);
+  expect(crop.asset).toBe(background.asset);
+  expect(Math.abs(crop.source!.x - 36)).toBeLessThan(2);
+  await page.locator("#comment").fill("保留這個參考區塊");
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  const position = await canvasPosition(page, 1300, 400); await page.mouse.dblclick(position.x, position.y);
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Replace background", exact: true }).click();
+  const bytes = await page.evaluate(() => { const canvas = document.createElement("canvas"); canvas.width = 390; canvas.height = 700; return canvas.toDataURL("image/png").split(",")[1]; });
+  await (await chooser).setFiles({ name: "new-screen.png", mimeType: "image/png", buffer: Buffer.from(bytes, "base64") });
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds![1].height)).toBe(700);
+  const next = await page.evaluate(() => window.redpenTest.project);
+  expect(next.backgrounds![1].x).toBe(background.x);
+  expect(next.items[0].asset).toBe(crop.asset); expect(next.items[0].source).toEqual(crop.source);
+  expect(next.items[0].comment).toBe("保留這個參考區塊");
 });

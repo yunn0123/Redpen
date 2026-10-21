@@ -1,6 +1,9 @@
 /** A screenshot-first canvas keeps editing gestures local and sends only small document changes to VS Code. */
 import Konva from "konva";
-import { DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, kindNames, parseProject, selectionRect, type Item, type Kind, type Project, type Rect } from "../model";
+import { motionLibrary } from "../motion";
+import { createMotionPreview } from "./motion-preview";
+import { toolbarOrder, type ToolbarOrder } from "../toolbar";
+import { DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, MAX_REFERENCES, kindNames, parseProject, projectBackgrounds, setBackgrounds, selectionRect, type Background, type Item, type Kind, type Project, type Rect } from "../model";
 import { iconLibrary, componentLibrary, toolbarIcons } from "./library";
 import "./editor.css";
 
@@ -29,9 +32,10 @@ app.innerHTML = `
     <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
       <div class="popover-heading"><strong id="popover-title"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
       <label for="popover-comment">Request<textarea id="popover-comment" maxlength="8000" rows="2" placeholder="Describe what should change…"></textarea></label>
+      <div id="popover-references" class="reference-list"></div><button id="popover-add-reference" class="add-reference">Add reference image</button>
       <div class="popover-footer"><small>Enter to finish<br>Shift+Enter for a new line</small><button id="popover-details">More options</button></div>
     </section>
-  </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><p id="background-hint" hidden>Background selected. Paste to replace it. Existing objects keep their positions and sizes.</p>
+  </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><section id="background-actions" hidden><p id="background-hint">Background selected. Its position is locked; annotations remain when replaced or deleted.</p><button id="replace-background">Replace background</button><button id="delete-background">Delete background</button></section>
     <p class="aside-description">Select a region and describe its appearance or behavior.</p>
     <section id="inspector" hidden><div class="inspector-heading"><strong id="selection-title"></strong><button id="delete" class="danger" title="Delete object" aria-label="Delete object">${icon("trash")}</button></div>
       <div id="image-actions" hidden><button id="rotate-image">Rotate 90°</button><button id="flip-image-x">Flip horizontal</button><button id="flip-image-y">Flip vertical</button></div>
@@ -41,12 +45,17 @@ app.innerHTML = `
       <section id="sketch-panel" hidden><label>Sketch an icon<canvas id="sketch" width="200" height="160" aria-label="Icon sketch area"></canvas></label><button id="sketch-clear">Clear strokes</button><small>You can also describe the icon in the request below.</small></section>
       <label id="color-label">Color<input id="color" type="color" value="#f35e5e"></label>
       <label for="comment">Request<textarea id="comment" aria-describedby="save-hint" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea></label>
+      <div class="motion-field"><span id="motion-summary" class="field-hint"></span><button id="add-motion">Add motion</button><button id="remove-motion" hidden>Remove motion</button></div>
+      <div id="references" class="reference-list"></div><button id="add-reference" class="add-reference">Add reference image</button>
       <span class="field-hint" id="save-hint">Enter to finish · Shift+Enter for a new line · Autosaved</span>
     </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>Give every change a place</p><small>Use Annotate, or select an object on the canvas.</small></div>
     <div class="aside-footer"><span id="filename">Original preserved · Export when ready</span></div></aside></main>
   <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">${icon("close")}</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
-  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">${icon("close")}</button></div><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results"></div></dialog>
-  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">${icon("close")}</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
+  <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">${icon("close")}</button></div><div class="library-tabs" role="tablist" aria-label="Library category"><button id="tab-components" role="tab" aria-selected="true" aria-controls="library-results">Components</button><button id="tab-motion" role="tab" aria-selected="false" aria-controls="library-results" tabindex="-1">Motion</button></div><p id="library-help" class="field-hint"></p><label id="motion-category-label" hidden>Motion category<select id="motion-category" aria-label="Motion category"><option value="All">All patterns</option><option value="Interactive">Interactive components</option><option value="Scroll">Scroll-linked effects</option><option value="Basic">Basic effects</option></select></label><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results" role="tabpanel" aria-labelledby="tab-components"></div></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">${icon("close")}</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Drag toolbar buttons to reorder within their group, or focus a button and press Alt+Arrow keys. Your order is remembered.</p><button id="reset-toolbar">Reset toolbar order</button><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
+  <input id="background-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+  <input id="reference-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+  <dialog id="reference-preview" aria-labelledby="reference-preview-title"><div class="library-heading"><h2 id="reference-preview-title"></h2><button id="reference-preview-close" aria-label="Close reference preview">${icon("close")}</button></div><img id="reference-preview-image" alt=""></dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>`;
 
 /** Resolve a fixed editor element once its template has been mounted. */
@@ -73,16 +82,21 @@ let imageUri = "";
 let loadGeneration = 0;
 let selectedId: string | undefined;
 let selectedIds = new Set<string>();
-let backgroundSelected = false;
+let backgroundSelected: string | undefined;
+let replacingBackground: string | undefined;
 let assets = new Map<string, HTMLImageElement>();
 let marquee: { start: Point; current: Point; preview: Konva.Rect; additive: boolean } | undefined;
 let moving: { anchor: string; start: Point; positions: Map<string, Point> } | undefined;
 let tool: Tool = "note";
 let revision = 0;
 let pendingComponent: string | undefined;
+let pendingMotion: string | undefined;
+let libraryMode: "components" | "motion" = "components";
+let motionCleanups: (() => void)[] = [];
+function disposeMotionPreviews(): void { motionCleanups.forEach(dispose => dispose()); motionCleanups = []; }
 let handoffPrompt = DEFAULT_HANDOFF_PROMPT;
 let stroke: { id: string; pointerId: number; points: number[] } | undefined;
-let gesture: { start: Point; current: Point; preview: Konva.Shape; kind: Kind } | undefined;
+let gesture: { start: Point; current: Point; preview: Konva.Shape; kind: Kind; background?: Background } | undefined;
 let pan: { start: Point; origin: Point } | undefined;
 let space = false;
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -107,7 +121,7 @@ function selected(): Item | undefined { return project?.items.find(item => item.
 function selectItems(ids: Iterable<string>): void {
   selectedIds = new Set(ids);
   selectedId = selectedIds.size === 1 ? [...selectedIds][0] : undefined;
-  backgroundSelected = false;
+  backgroundSelected = undefined;
 }
 
 /** Image transforms preserve the center and store the resulting axis-aligned footprint. */
@@ -159,9 +173,10 @@ function changeFontSize(size: number): void {
 }
 
 /** Open one searchable catalog; choosing a result arms the next canvas gesture. */
-function openLibrary(): void {
+function openLibrary(mode: "components" | "motion" = "components"): void {
   flushFields();
-  el("library-title").textContent = "Components";
+  libraryMode = mode;
+  el("library-title").textContent = "Components & motion";
   el<HTMLInputElement>("library-search").value = "";
   renderLibrary();
   el<HTMLDialogElement>("library").showModal();
@@ -170,8 +185,17 @@ function openLibrary(): void {
 
 /** Render trusted local vector previews and search component names and descriptions. */
 function renderLibrary(): void {
+  disposeMotionPreviews();
   const query = el<HTMLInputElement>("library-search").value.trim().toLowerCase();
   const results = el("library-results"); results.replaceChildren();
+  for (const mode of ["components", "motion"] as const) {
+    const tab = el<HTMLButtonElement>(`tab-${mode}`); tab.setAttribute("aria-selected", String(mode === libraryMode)); tab.tabIndex = mode === libraryMode ? 0 : -1;
+  }
+  results.setAttribute("aria-labelledby", `tab-${libraryMode}`);
+  el("library-help").textContent = libraryMode === "motion" ? "Preview an effect, then add it to the selected object or draw a new region. Exports include a readable motion recipe." : "Choose a component, then draw a region for your request.";
+  el("library-search").setAttribute("aria-label", libraryMode === "motion" ? "Search motion" : "Search components");
+  el("motion-category-label").hidden = libraryMode !== "motion";
+  if (libraryMode === "motion") { renderMotionLibrary(query); return; }
   const entries = componentLibrary.map(entry => ({ name: entry.name, description: entry.description, preview: entry.skeleton, value: entry.name }));
   for (const entry of entries.filter(entry => `${entry.name} ${entry.description}`.toLowerCase().includes(query))) {
     const button = document.createElement("button");
@@ -187,6 +211,39 @@ function renderLibrary(): void {
       canvas.focus();
     });
     results.append(button);
+  }
+  if (!results.childElementCount) results.textContent = "No matches. Try another keyword.";
+}
+
+/** Finite local previews complement the complete text recipe sent to the agent. */
+function renderMotionLibrary(query: string): void {
+  const results = el("library-results");
+  const category = el<HTMLSelectElement>("motion-category").value;
+  for (const motion of motionLibrary.filter(entry => (category === "All" || entry.category === category) && `${entry.name} ${entry.description} ${entry.keywords ?? ""}`.toLowerCase().includes(query))) {
+    const card = document.createElement("section"); card.className = "motion-card";
+    const heading = document.createElement("h3"); heading.textContent = motion.name;
+    const description = document.createElement("p"); description.textContent = motion.description;
+    card.dataset.motion = motion.id;
+    const widget = createMotionPreview(motion);
+    if (widget.dispose) motionCleanups.push(widget.dispose);
+    const timing = document.createElement("small"); timing.textContent = `${motion.category} · ${motion.duration ? `${motion.duration}ms` : "Scroll-linked, no fixed duration"}`;
+    const trigger = document.createElement("small"); trigger.textContent = motion.trigger;
+    const preview = document.createElement("button"); preview.textContent = widget.label ?? "Play preview"; preview.setAttribute("aria-label", `Preview ${motion.name}`);
+    if (widget.play) preview.addEventListener("click", widget.play);
+    const use = document.createElement("button"); use.className = "primary"; use.textContent = "Add to request"; use.setAttribute("aria-label", `Use ${motion.name}`);
+    use.addEventListener("click", () => {
+      flushFields(); el<HTMLDialogElement>("library").close();
+      const item = selected();
+      if (item) {
+        item.motion = motion.id; item.comment ||= `Apply ${motion.name} to this element.`;
+        if (popoverId === item.id) el<HTMLTextAreaElement>("popover-comment").value = item.comment;
+        commit(); showSidebar(true); el("comment").focus();
+      } else {
+        setTool("note"); pendingMotion = motion.id; el("hint").textContent = `${motion.name}: Draw the region that should animate`; canvas.focus();
+      }
+    });
+    const actions = document.createElement("div"); actions.className = "motion-actions"; if (widget.play) actions.append(preview); actions.append(use);
+    card.append(widget.element, heading, description, timing, trigger, actions); results.append(card);
   }
   if (!results.childElementCount) results.textContent = "No matches. Try another keyword.";
 }
@@ -227,6 +284,67 @@ function collapseTools(collapsed: boolean): void {
   button.title = button.dataset.tooltip = collapsed ? "Keep drawing tools expanded" : "Collapse drawing tools";
 }
 
+type ReferenceTarget = { itemId: string; fieldId: string; start: number; end: number; count: number };
+let referencePicker: ReferenceTarget | undefined;
+let referencePending: ReferenceTarget | undefined;
+
+/** Resolve each attachment against the request that owns the text, including hover previews. */
+function referenceTarget(fieldId: string): ReferenceTarget | undefined {
+  const item = project?.items.find(item => item.id === (fieldId === "popover-comment" ? popoverId : selectedId));
+  if (!item) return;
+  const field = el<HTMLTextAreaElement>(fieldId);
+  return { itemId: item.id, fieldId, start: field.selectionStart, end: field.selectionEnd, count: item.references?.length ?? 0 };
+}
+
+/** Hold edits briefly while a new asset is stored so an older edit cannot drop its attachment. */
+function finishReference(success = false): void {
+  const target = referencePending;
+  referencePending = undefined; app.inert = false; app.removeAttribute("aria-busy");
+  if (!target) return;
+  if (target.fieldId === "popover-comment" && popoverId === target.itemId) openPopover(target.itemId, true);
+  if ((target.fieldId === "popover-comment" ? popoverId : selectedId) === target.itemId) {
+    const field = el<HTMLTextAreaElement>(target.fieldId); field.focus();
+    const length = project?.items.find(item => item.id === target.itemId)?.references?.at(-1)?.id.toString().length ?? 1;
+    const caret = success ? target.start + length + 5 : target.end;
+    field.setSelectionRange(success ? caret : target.start, caret);
+  }
+}
+
+/** Build safe local thumbnails; references stay outside the editable screenshot. */
+function renderReferences(containerId: string, buttonId: string, item?: Item): void {
+  const container = el(containerId); container.replaceChildren();
+  el<HTMLButtonElement>(buttonId).disabled = !item || (item.references?.length ?? 0) >= MAX_REFERENCES;
+  for (const reference of item?.references ?? []) {
+    const row = document.createElement("div"); row.className = "reference-row";
+    const preview = document.createElement("button"); preview.className = "reference-preview";
+    preview.setAttribute("aria-label", `Preview reference img${reference.id}`);
+    const image = document.createElement("img"); image.src = assets.get(reference.asset)?.src ?? ""; image.alt = "";
+    const label = document.createElement("span"); label.textContent = `[img${reference.id}]`;
+    preview.append(image, label);
+    preview.addEventListener("mousedown", event => event.preventDefault());
+    preview.addEventListener("click", () => {
+      flushFields();
+      const image = el<HTMLImageElement>("reference-preview-image"); image.src = assets.get(reference.asset)?.src ?? "";
+      image.alt = `Reference img${reference.id}`; el("reference-preview-title").textContent = `[img${reference.id}]`;
+      el<HTMLDialogElement>("reference-preview").showModal();
+    });
+    const remove = document.createElement("button"); remove.className = "danger"; remove.innerHTML = icon("trash");
+    remove.setAttribute("aria-label", `Remove reference img${reference.id}`);
+    remove.addEventListener("mousedown", event => event.preventDefault());
+    remove.addEventListener("click", () => {
+      flushFields();
+      const current = project?.items.find(entry => entry.id === item!.id);
+      if (!current) return;
+      current.references = current.references?.filter(entry => entry.id !== reference.id);
+      current.comment = current.comment.replaceAll(`[img${reference.id}]`, "");
+      if (popoverId === current.id) el<HTMLTextAreaElement>("popover-comment").value = current.comment;
+      commit();
+      el(containerId === "popover-references" ? "popover-add-reference" : "add-reference").focus();
+    });
+    row.append(preview, remove); container.append(row);
+  }
+}
+
 /** Save a floating request through the same document history as the sidebar. */
 function savePopover(): void {
   const item = project?.items.find(entry => entry.id === popoverId);
@@ -251,7 +369,7 @@ function closePopover(): void {
 function deferPopoverClose(): void {
   clearTimeout(popoverTimer);
   popoverTimer = setTimeout(() => {
-    if (!el("comment-popover").contains(document.activeElement)) closePopover();
+    if (!referencePending && !referencePicker && !el<HTMLDialogElement>("reference-preview").open && !el("comment-popover").contains(document.activeElement)) closePopover();
   }, 250);
 }
 
@@ -325,6 +443,7 @@ function renderComments(): void {
     el("popover-title").textContent = `${items.indexOf(item) + 1} · ${item.component ?? kindNames[item.kind]}`;
     if (document.activeElement !== el("popover-comment")) el<HTMLTextAreaElement>("popover-comment").value = item.comment;
   }
+  renderReferences("popover-references", "popover-add-reference", item);
   positionComments();
 }
 
@@ -337,7 +456,7 @@ function renderInspector(): void {
   el("selection-summary").hidden = selectedIds.size < 2;
   el("selection-summary").textContent = `${selectedIds.size} objects selected · Drag to move, ⌘/Ctrl-click to deselect`;
   el("delete-many").hidden = selectedIds.size < 2;
-  el("background-hint").hidden = !backgroundSelected;
+  el("background-actions").hidden = !backgroundSelected;
   el<HTMLButtonElement>("add-comment").disabled = !screenshot;
   el("image-actions").hidden = !item || !["image", "crop"].includes(item.kind);
   if (item) {
@@ -355,6 +474,10 @@ function renderInspector(): void {
     if (item.kind === "stamp") drawSketch();
     el("color-label").hidden = ["crop", "image", "comment"].includes(item.kind);
   }
+  el("motion-summary").textContent = item?.motion ? `Motion: ${motionLibrary.find(entry => entry.id === item.motion)?.name}` : "No motion specified";
+  el("remove-motion").hidden = !item?.motion;
+  el("add-motion").textContent = item?.motion ? "Change motion" : "Add motion";
+  renderReferences("references", "add-reference", item);
   const list = el("item-list");
   list.replaceChildren();
   project?.items.forEach((entry, index) => {
@@ -371,6 +494,8 @@ function renderInspector(): void {
     summary.textContent = entry.comment || iconLibrary.find(icon => `icon:${icon.id}` === entry.text)?.name || entry.text || "Click to add a request";
     content.append(title, summary);
     button.append(number, content);
+    // Keep a blur-triggered save from replacing this list entry before its click runs.
+    button.addEventListener("mousedown", event => event.preventDefault());
     button.addEventListener("click", () => { setTool("select"); selectItems([entry.id]); render(); el("comment").focus(); el("inspector").scrollIntoView({ block: "nearest" }); });
     list.append(button);
   });
@@ -457,13 +582,15 @@ function render(): void {
   if (!project || !screenshot) return;
   transformer.nodes([]); arrowHandles.destroyChildren();
   scene.destroyChildren();
-  const background = new Konva.Image({ name: "background", image: screenshot, width: screenshot.naturalWidth, height: screenshot.naturalHeight });
-  background.on("dblclick dbltap", () => {
-    if (tool !== "select" || fatal) return;
-    flushFields(); cancelGesture(); selectItems([]); backgroundSelected = true; render(); canvas.focus();
-  });
-  scene.add(background);
-  if (backgroundSelected) arrowHandles.add(new Konva.Rect({ width: screenshot.naturalWidth, height: screenshot.naturalHeight, stroke: "#5fd6bd", strokeWidth: 2 / scene.scaleX(), listening: false }));
+  for (const entry of backgrounds()) {
+    const background = new Konva.Image({ name: "background", backgroundId: entry.id, image: assets.get(entry.asset)!, x: entry.x, y: entry.y, width: entry.width, height: entry.height });
+    background.on("dbltap", () => {
+      if (tool !== "select" || fatal) return;
+      flushFields(); cancelGesture(); selectItems([]); backgroundSelected = entry.id; showSidebar(true); render(); canvas.focus();
+    });
+    scene.add(background);
+    if (backgroundSelected === entry.id) arrowHandles.add(new Konva.Rect({ x: entry.x, y: entry.y, width: entry.width, height: entry.height, stroke: "#5fd6bd", strokeWidth: 2 / scene.scaleX(), listening: false }));
+  }
   project.items.forEach((item, index) => {
     if (item.kind === "comment") return;
     const node = makeNode(item, index);
@@ -472,7 +599,7 @@ function render(): void {
       if (tool !== "select" || space || fatal) return;
       const mouse = event.evt as MouseEvent;
       if (mouse.button === 1) return;
-      flushFields(); backgroundSelected = false;
+      flushFields(); backgroundSelected = undefined;
       if (mouse.metaKey || mouse.ctrlKey) {
         const ids = new Set(selectedIds);
         if (ids.has(item.id)) ids.delete(item.id); else ids.add(item.id);
@@ -514,16 +641,26 @@ function render(): void {
   renderInspector(); renderComments(); layer.draw();
 }
 
+/** Native double-click fires after pointer-up selection, so earlier marquee clicks cannot clear it. */
+canvas.addEventListener("dblclick", event => {
+  if (tool !== "select" || fatal) return;
+  stage.setPointersPositions(event);
+  const point = stage.getPointerPosition(), node = point ? stage.getIntersection(point) : undefined;
+  const id = node?.getAttr("backgroundId") as string | undefined;
+  if (!id) return;
+  flushFields(); cancelGesture(); selectItems([]); backgroundSelected = id; showSidebar(true); render(); canvas.focus();
+});
+
 /** Switch interaction modes while preserving the selected object's requirements. */
 function setTool(next: Tool): void {
   flushFields();
   cancelGesture();
   tool = next;
-  pendingComponent = undefined;
+  pendingComponent = undefined; pendingMotion = undefined;
   document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.tool === tool)));
   canvas.style.cursor = tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair";
   const hints: Record<Tool, string> = {
-    select: "Drag to select · ⌘/Ctrl-click to toggle · Delete to remove · Double-click the background to replace it", pan: "Drag to pan · ⌘/Ctrl + scroll to zoom",
+    select: "Drag to select · ⌘/Ctrl-click to toggle · Delete to remove · Double-click a background to replace or delete it", pan: "Drag to pan · ⌘/Ctrl + scroll to zoom",
     note: "Draw a region and describe what you want to change", cover: "Draw a cover, then choose its fill color", crop: "Select a region of the original, then drag the copy to a new position",
     image: "Add an image object", comment: "A general request without a specific location",
     arrow: "Drag an arrow to point to a location or show movement", text: "Click to add text", stamp: "Click to add a placeholder, then describe or sketch the icon in the sidebar", outline: "Draw an outline to highlight an area; no annotation needed",
@@ -545,11 +682,21 @@ function viewport(scale: number, position: Point): void {
   layer.batchDraw();
 }
 
-/** Fit the entire screenshot with breathing room without upscaling small images. */
+function backgrounds(): Background[] {
+  return project && screenshot ? projectBackgrounds(project, screenshot.naturalWidth, screenshot.naturalHeight) : [];
+}
+
+/** Fit every fixed background without changing any screenshot or annotation coordinates. */
 function fit(): void {
-  if (!screenshot) return;
-  const scale = Math.max(.02, Math.min(1, (stage.width() - 64) / screenshot.naturalWidth, (stage.height() - 96) / screenshot.naturalHeight));
-  viewport(scale, { x: (stage.width() - screenshot.naturalWidth * scale) / 2, y: (stage.height() - screenshot.naturalHeight * scale) / 2 });
+  const images = backgrounds();
+  if (!images.length) return;
+  const left = Math.min(0, ...images.map(image => image.x)), top = Math.min(0, ...images.map(image => image.y));
+  const width = Math.max(...images.map(image => image.x + image.width)) - left;
+  const height = Math.max(...images.map(image => image.y + image.height)) - top;
+  const panelWidth = (images.length > 1 || images[0].x !== 0 || images[0].y !== 0) && !el("sidebar").hidden ? el("right-panel").offsetWidth + 16 : 0;
+  const visibleWidth = stage.width() - panelWidth;
+  const scale = Math.max(.02, Math.min(1, (visibleWidth - 64) / width, (stage.height() - 96) / height));
+  viewport(scale, { x: (visibleWidth - width * scale) / 2 - left * scale, y: (stage.height() - height * scale) / 2 - top * scale });
 }
 
 /** Zoom around the cursor so the region being inspected stays under the pointer. */
@@ -576,22 +723,31 @@ function backgroundColor(rect: Rect): string {
   try {
     const sample = document.createElement("canvas"); sample.width = sample.height = 1;
     const context = sample.getContext("2d")!;
-    context.drawImage(screenshot!, Math.max(0, rect.x - 1), Math.max(0, rect.y - 1), 1, 1, 0, 0, 1, 1);
+    const background = backgrounds().find(image => rect.x >= image.x && rect.x <= image.x + image.width && rect.y >= image.y && rect.y <= image.y + image.height);
+    if (!background) return "#ffffff";
+    const image = assets.get(background.asset)!;
+    context.drawImage(image, Math.max(0, (rect.x - background.x - 1) * image.naturalWidth / background.width), Math.max(0, (rect.y - background.y - 1) * image.naturalHeight / background.height), 1, 1, 0, 0, 1, 1);
     const data = context.getImageData(0, 0, 1, 1).data;
     return `#${Array.from(data.slice(0, 3)).map(channel => channel.toString(16).padStart(2, "0")).join("")}`;
   } catch { return "#ffffff"; }
 }
 
 /** Retain the active creation tool for repeated drawing and source geometry for agent notes. */
-function addItem(kind: Kind, rect: Rect): void {
+function addItem(kind: Kind, rect: Rect, sourceBackground?: Background): void {
   if (!project || fatal) return;
   if (project.items.length >= MAX_ITEMS) { toast(`Each draft supports up to ${MAX_ITEMS} objects.`); return; }
   const item: Item = {
     ...rect, id: crypto.randomUUID(), kind, color: kind === "cover" ? backgroundColor(rect) : "#f35e5e",
-    text: kind === "text" ? "Text" : kind === "stamp" ? "placeholder" : "", comment: "",
+    text: kind === "text" ? "Text" : kind === "stamp" ? "placeholder" : "", comment: kind === "note" && pendingMotion ? `Apply ${motionLibrary.find(entry => entry.id === pendingMotion)!.name} to this region.` : "",
+    ...(kind === "note" && pendingMotion ? { motion: pendingMotion } : {}),
     ...(kind === "text" ? { fontSize: 22 } : {}),
     ...(kind === "note" && pendingComponent ? { component: pendingComponent } : {}),
-    ...(kind === "crop" ? { source: { ...rect }, x: rect.x + 16, y: rect.y + 16 } : {}),
+    ...(kind === "crop" ? { source: sourceBackground ? {
+      x: (rect.x - sourceBackground.x) * assets.get(sourceBackground.asset)!.naturalWidth / sourceBackground.width,
+      y: (rect.y - sourceBackground.y) * assets.get(sourceBackground.asset)!.naturalHeight / sourceBackground.height,
+      width: rect.width * assets.get(sourceBackground.asset)!.naturalWidth / sourceBackground.width,
+      height: rect.height * assets.get(sourceBackground.asset)!.naturalHeight / sourceBackground.height,
+    } : { ...rect }, ...(sourceBackground ? { asset: sourceBackground.asset } : {}), x: rect.x + 16, y: rect.y + 16 } : {}),
   };
   project.items.push(item); selectItems([item.id]); commit();
   if (kind === "note" && el("sidebar").hidden) openPopover(item.id, true);
@@ -615,7 +771,7 @@ stage.on("mousedown touchstart", event => {
   }
   if (tool === "select") {
     if (event.target === stage || event.target.hasName("background")) {
-      flushFields(); backgroundSelected = false;
+      flushFields(); backgroundSelected = undefined;
       const additive = mouse.metaKey || mouse.ctrlKey;
       if (!additive) selectItems([]);
       const preview = new Konva.Rect({ ...point, width: 0, height: 0, stroke: "#5fd6bd", strokeWidth: 1 / scene.scaleX(), fill: "rgba(95,214,189,.1)", listening: false });
@@ -625,7 +781,8 @@ stage.on("mousedown touchstart", event => {
     return;
   }
   flushFields();
-  if (tool === "crop" && (point.x < 0 || point.y < 0 || point.x > screenshot.naturalWidth || point.y > screenshot.naturalHeight)) return;
+  const sourceBackground = tool === "crop" ? backgrounds().find(background => point.x >= background.x && point.x <= background.x + background.width && point.y >= background.y && point.y <= background.y + background.height) : undefined;
+  if (tool === "crop" && !sourceBackground) return;
   if (tool === "text" || tool === "stamp") {
     // Prevent the pointer default from stealing focus back after opening the editor.
     event.evt.preventDefault();
@@ -634,7 +791,7 @@ stage.on("mousedown touchstart", event => {
   const preview = tool === "arrow"
     ? new Konva.Arrow({ points: [point.x, point.y, point.x, point.y], stroke: "#5fd6bd", fill: "#5fd6bd", strokeWidth: 2, listening: false })
     : new Konva.Rect({ ...point, width: 0, height: 0, stroke: "#5fd6bd", strokeWidth: 1.5 / scene.scaleX(), fill: "rgba(95,214,189,0.12)", dash: [5 / scene.scaleX(), 4 / scene.scaleX()], listening: false });
-  overlay.add(preview); gesture = { start: point, current: point, preview, kind: tool };
+  overlay.add(preview); gesture = { start: point, current: point, preview, kind: tool, background: sourceBackground };
 });
 
 /** Motion updates visual transforms only, avoiding repeated JSON serialization and image decoding. */
@@ -648,9 +805,10 @@ stage.on("mousemove touchmove", event => {
   }
   if (!gesture || !screenshot) return;
   const point = pointer();
-  gesture.current = gesture.kind === "crop" ? { x: Math.max(0, Math.min(screenshot.naturalWidth, point.x)), y: Math.max(0, Math.min(screenshot.naturalHeight, point.y)) } : point;
+  const background = gesture.background;
+  gesture.current = background ? { x: Math.max(background.x, Math.min(background.x + background.width, point.x)), y: Math.max(background.y, Math.min(background.y + background.height, point.y)) } : point;
   if (gesture.kind === "arrow") (gesture.preview as Konva.Arrow).points([gesture.start.x, gesture.start.y, gesture.current.x, gesture.current.y]);
-  else gesture.preview.setAttrs(selectionRect(gesture.start, gesture.current, gesture.kind === "crop" ? { width: screenshot.naturalWidth, height: screenshot.naturalHeight } : undefined));
+  else gesture.preview.setAttrs(selectionRect(gesture.start, gesture.current));
   layer.batchDraw();
 });
 
@@ -671,12 +829,12 @@ function endGesture(): void {
   }
   if (pan) { pan = undefined; canvas.style.cursor = tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair"; }
   if (!gesture || !screenshot) return;
-  const { start, current, kind } = gesture;
+  const { start, current, kind, background } = gesture;
   cancelGesture();
   const rect = kind === "arrow" ? { ...start, width: current.x - start.x, height: current.y - start.y }
-    : selectionRect(start, current, kind === "crop" ? { width: screenshot.naturalWidth, height: screenshot.naturalHeight } : undefined);
+    : selectionRect(start, current);
   if (kind === "arrow" ? Math.hypot(rect.width, rect.height) < 8 : rect.width < 4 || rect.height < 4) return;
-  addItem(kind, rect);
+  addItem(kind, rect, background);
 }
 window.addEventListener("mouseup", endGesture);
 window.addEventListener("touchend", endGesture);
@@ -691,12 +849,24 @@ canvas.addEventListener("wheel", event => {
 
 /** Delete through one shared action used by the toolbar and keyboard. */
 function removeSelected(): void {
+  if (backgroundSelected && project) {
+    flushFields();
+    const remaining = backgrounds().filter(background => background.id !== backgroundSelected);
+    if (!remaining.length) { toast("At least one background image must remain."); return; }
+    project = setBackgrounds(project, remaining); backgroundSelected = undefined; commit();
+    toast("Background deleted. Annotations were kept; remove them separately if needed."); return;
+  }
   if (!project || !selectedIds.size || fatal) return;
   project.items = project.items.filter(item => !selectedIds.has(item.id)); selectItems([]); commit();
 }
 
 /** Decode new images before asking the host to store them, preserving the draft on invalid input. */
-async function insertImage(file: File, mode: "new" | "asset" | "replace"): Promise<void> {
+async function insertImage(file: File, mode: "new" | "asset" | "replace" | "reference" | "background", reference?: ReferenceTarget, backgroundId?: string): Promise<void> {
+  if (referencePending) return;
+  if (reference) {
+    if (reference.count >= MAX_REFERENCES) { toast(`Each request supports up to ${MAX_REFERENCES} reference images.`); return; }
+    flushFields(); referencePending = reference; clearTimeout(popoverTimer); app.inert = true; app.setAttribute("aria-busy", "true");
+  }
   let url: string | undefined;
   try {
     if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
@@ -712,20 +882,26 @@ async function insertImage(file: File, mode: "new" | "asset" | "replace"): Promi
     });
     flushFields();
     const x = (stage.width() / 2 - scene.x()) / scene.scaleX(), y = (stage.height() / 2 - scene.y()) / scene.scaleY();
-    host.postMessage({ type: "paste", image: data, mode, width: image.naturalWidth, height: image.naturalHeight, x, y });
+    const sourceImage = project ? assets.get(project.image) : undefined;
+    host.postMessage({ type: "paste", image: data, mode, width: image.naturalWidth, height: image.naturalHeight, x, y, sourceWidth: sourceImage?.naturalWidth ?? image.naturalWidth, sourceHeight: sourceImage?.naturalHeight ?? image.naturalHeight, backgroundId, ...(reference ? { itemId: reference.itemId, start: reference.start, end: reference.end } : {}) });
     el<HTMLDialogElement>("image-dialog").close();
-  } catch (error) { toast(`Paste failed: ${error instanceof Error ? error.message : String(error)}`); }
+  } catch (error) { if (reference) finishReference(); toast(`Paste failed: ${error instanceof Error ? error.message : String(error)}`); }
   finally { if (url) URL.revokeObjectURL(url); }
 }
 
-/** Text fields retain native paste; selecting the background explicitly opts into replacement. */
+/** Only request fields consume image paste; ordinary text paste remains native. */
 window.addEventListener("paste", event => {
   const target = event.target;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) return;
   const file = Array.from(event.clipboardData?.items ?? []).find(item => item.kind === "file" && item.type.startsWith("image/"))?.getAsFile();
   if (!file) return;
+  if (target instanceof HTMLTextAreaElement && ["comment", "popover-comment"].includes(target.id)) {
+    event.preventDefault(); const reference = referenceTarget(target.id);
+    if (reference) void insertImage(file, "reference", reference);
+    return;
+  }
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLElement && target.isContentEditable) return;
   event.preventDefault();
-  void insertImage(file, !screenshot ? "new" : backgroundSelected && !el<HTMLDialogElement>("image-dialog").open ? "replace" : "asset");
+  void insertImage(file, !screenshot ? "new" : el<HTMLDialogElement>("image-dialog").open ? "asset" : "background");
 });
 
 /** Export all content at original pixel scale, with transparent space and an explicit origin offset. */
@@ -735,13 +911,15 @@ async function exportImage(): Promise<void> {
   const empty = project.items.find(item => ["note", "comment"].includes(item.kind) && !item.comment.trim());
   if (empty) { selectItems([empty.id]); render(); if (empty.kind === "comment") { showSidebar(true); el("comment").focus(); } else openPopover(empty.id, true); toast("Fill in the region annotations before exporting for your agent."); return; }
   exporting = true; el<HTMLButtonElement>("export").disabled = true;
-  host.postMessage({ type: "export", sourceWidth: screenshot.naturalWidth, sourceHeight: screenshot.naturalHeight, assetSizes: Object.fromEntries([...assets].map(([name, image]) => [name, { width: image.naturalWidth, height: image.naturalHeight }])) });
+  const sourceImage = assets.get(project.image) ?? screenshot;
+  host.postMessage({ type: "export", sourceWidth: sourceImage.naturalWidth, sourceHeight: sourceImage.naturalHeight, assetSizes: Object.fromEntries([...assets].map(([name, image]) => [name, { width: image.naturalWidth, height: image.naturalHeight }])) });
 }
 
 /** Load immutable screenshot assets once and ignore stale loads after a document replacement. */
 window.addEventListener("message", async event => {
   const message = event.data;
   if (message?.type === "settings") {
+    if (message.toolbarOrder) applyToolbarOrder(toolbarOrder(message.toolbarOrder));
     if (typeof message.toolbarCollapsed === "boolean") collapseTools(message.toolbarCollapsed);
     handoffPrompt = message.prompt;
     el<HTMLTextAreaElement>("handoff-prompt").value = handoffPrompt;
@@ -784,17 +962,20 @@ window.addEventListener("message", async event => {
         loaded.set(name, image);
       }
       if (generation !== loadGeneration) return;
+      const addedBackground = (next.backgrounds?.length ?? 1) > (project?.backgrounds?.length ?? 1);
       assets = loaded; project = next; fatal = false;
+      const referenceReady = referencePending && (next.items.find(item => item.id === referencePending!.itemId)?.references?.length ?? 0) > referencePending.count;
       selectedIds = new Set([...selectedIds].filter(id => project!.items.some(item => item.id === id)));
       selectedId = selectedIds.size === 1 ? [...selectedIds][0] : undefined;
       el("empty").hidden = true; el("filename").textContent = `${screenshot!.naturalWidth} × ${screenshot!.naturalHeight} · ${message.scratch ? "Autosaved" : "Local draft"}`;
       el<HTMLButtonElement>("export").disabled = exporting;
       // An acknowledgement confirms the optimistic edit; rebuilding here could interrupt the next gesture.
-      if (message.ack === undefined) render();
-      if (!same) fit();
-    } catch (error) { fatal = true; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
+      if (message.ack === undefined || !same) render();
+      if (!same || addedBackground) fit();
+      if (referenceReady) finishReference(true);
+    } catch (error) { finishReference(); fatal = true; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
   } else if (message?.type === "error") {
-    fatal = Boolean(message.fatal); exporting = false;
+    finishReference(); fatal = Boolean(message.fatal); exporting = false;
     el<HTMLButtonElement>("export").disabled = fatal || !screenshot;
     toast(String(message.message));
   } else if (message?.type === "exported") {
@@ -803,6 +984,69 @@ window.addEventListener("message", async event => {
     exporting = false; el<HTMLButtonElement>("export").disabled = !screenshot;
   }
 });
+
+/** Reordering moves existing controls, preserving their event handlers and active tool. */
+function toolbarButtons(group: keyof ToolbarOrder): HTMLButtonElement[] {
+  return [...document.querySelectorAll<HTMLButtonElement>(group === "drawing" ? "#drawing-tools > button:not(#collapse-tools)" : ".toolbar-right > button")];
+}
+function controlId(button: HTMLButtonElement): string { return button.dataset.tool ?? button.id; }
+function applyToolbarOrder(order: ToolbarOrder): void {
+  for (const group of ["drawing", "actions"] as const) {
+    const buttons = new Map(toolbarButtons(group).map(button => [controlId(button), button]));
+    const parent = group === "drawing" ? el("drawing-tools") : document.querySelector<HTMLElement>(".toolbar-right")!;
+    for (const id of order[group]) { const button = buttons.get(id); if (button) parent.append(button); }
+    if (group === "drawing") parent.append(el("collapse-tools"));
+  }
+}
+function saveToolbarOrder(): void {
+  host.postMessage({ type: "toolbarOrder", order: { drawing: toolbarButtons("drawing").map(controlId), actions: toolbarButtons("actions").map(controlId) } });
+}
+for (const group of ["drawing", "actions"] as const) {
+  const parent = group === "drawing" ? el("drawing-tools") : document.querySelector<HTMLElement>(".toolbar-right")!;
+  const line = document.createElement("div"); line.className = "toolbar-drop-line"; line.hidden = true; line.setAttribute("aria-hidden", "true"); parent.append(line);
+  let dragging: HTMLButtonElement | undefined;
+  let destination: { button: HTMLButtonElement; after: boolean } | undefined;
+  const clear = () => { dragging = undefined; destination = undefined; line.hidden = true; parent.classList.remove("is-reordering"); };
+  for (const button of toolbarButtons(group)) {
+    button.draggable = true;
+    button.addEventListener("dragstart", event => {
+      if (referencePending) { event.preventDefault(); return; }
+      flushFields(); dragging = button; parent.classList.add("is-reordering");
+      event.dataTransfer?.setData("text/plain", controlId(button));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    });
+    button.addEventListener("dragend", clear);
+    button.addEventListener("keydown", event => {
+      if (!event.altKey || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation();
+      const buttons = toolbarButtons(group), index = buttons.indexOf(button);
+      const previous = ["ArrowLeft", "ArrowUp"].includes(event.key);
+      const sibling = buttons[index + (previous ? -1 : 1)];
+      if (!sibling) return;
+      parent.insertBefore(button, previous ? sibling : sibling.nextSibling); saveToolbarOrder(); button.focus();
+    });
+  }
+  parent.addEventListener("dragover", event => {
+    if (!dragging) return;
+    const target = (event.target as HTMLElement).closest<HTMLButtonElement>("button");
+    if (!target || !toolbarButtons(group).includes(target)) return;
+    event.preventDefault(); if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    const bounds = target.getBoundingClientRect(), container = parent.getBoundingClientRect();
+    const after = event.clientX > bounds.x + bounds.width / 2;
+    destination = { button: target, after };
+    line.hidden = false; line.style.left = `${bounds.x - container.x + (after ? bounds.width : 0)}px`;
+    line.style.top = `${bounds.y - container.y + 4}px`; line.style.height = `${bounds.height - 8}px`;
+  });
+  parent.addEventListener("dragleave", event => { if (!(event.relatedTarget instanceof Node) || !parent.contains(event.relatedTarget)) { destination = undefined; line.hidden = true; } });
+  parent.addEventListener("drop", event => {
+    if (!dragging || !destination) return;
+    event.preventDefault();
+    const { button, after } = destination;
+    if (button !== dragging) { parent.insertBefore(dragging, after ? button.nextSibling : button); saveToolbarOrder(); }
+    clear();
+  });
+}
+el("reset-toolbar").addEventListener("click", () => { applyToolbarOrder(toolbarOrder(undefined)); saveToolbarOrder(); toast("Toolbar order reset."); });
 
 /** Bind accessible controls to the same actions as their keyboard equivalents. */
 document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.addEventListener("click", () => { setTool(button.dataset.tool as Tool); canvas.focus(); }));
@@ -841,11 +1085,32 @@ el("popover-details").addEventListener("click", () => {
   const id = popoverId; closePopover();
   if (id) { setTool("select"); selectItems([id]); showSidebar(true); render(); el("comment").focus(); }
 });
+for (const [buttonId, fieldId] of [["add-reference", "comment"], ["popover-add-reference", "popover-comment"]]) {
+  el(buttonId).addEventListener("mousedown", event => event.preventDefault());
+  el(buttonId).addEventListener("click", () => {
+    referencePicker = referenceTarget(fieldId); flushFields();
+    if (referencePicker) el<HTMLInputElement>("reference-file").click();
+  });
+}
+el("reference-file").addEventListener("cancel", () => { referencePicker = undefined; });
+el("reference-file").addEventListener("change", () => {
+  const input = el<HTMLInputElement>("reference-file"), file = input.files?.[0], target = referencePicker;
+  referencePicker = undefined; input.value = "";
+  if (file && target) void insertImage(file, "reference", target);
+});
+el("reference-preview-close").addEventListener("click", () => el<HTMLDialogElement>("reference-preview").close());
 el("add-comment").addEventListener("click", () => { flushFields(); addItem("comment", { x: 0, y: 0, width: 1, height: 1 }); });
 el("delete-many").addEventListener("click", removeSelected);
 el("rotate-image").addEventListener("click", () => transformImage("rotate"));
 el("flip-image-x").addEventListener("click", () => transformImage("flipX"));
 el("flip-image-y").addEventListener("click", () => transformImage("flipY"));
+el("replace-background").addEventListener("click", () => { replacingBackground = backgroundSelected; el<HTMLInputElement>("background-file").click(); });
+el("delete-background").addEventListener("click", removeSelected);
+el("background-file").addEventListener("change", () => {
+  const input = el<HTMLInputElement>("background-file"), file = input.files?.[0], id = replacingBackground;
+  input.value = ""; replacingBackground = undefined;
+  if (file && id) void insertImage(file, "replace", undefined, id);
+});
 el("new-image").addEventListener("click", () => { flushFields(); el<HTMLDialogElement>("image-dialog").showModal(); });
 el("image-dialog-close").addEventListener("click", () => el<HTMLDialogElement>("image-dialog").close());
 el("image-file-open").addEventListener("click", () => el<HTMLInputElement>("image-file").click());
@@ -883,9 +1148,21 @@ el("sketch").addEventListener("pointerup", () => endStroke(true));
 el("sketch").addEventListener("pointercancel", () => endStroke(false));
 el("sketch").addEventListener("lostpointercapture", () => endStroke(false));
 el("sketch-clear").addEventListener("click", () => { const item = selected(); if (item?.kind === "stamp") { item.strokes = []; commit(); } });
-el("components").addEventListener("click", openLibrary);
+el("components").addEventListener("click", () => openLibrary());
+el("add-motion").addEventListener("click", () => openLibrary("motion"));
+el("remove-motion").addEventListener("click", () => { flushFields(); const item = selected(); if (item) { delete item.motion; commit(); } });
+for (const mode of ["components", "motion"] as const) {
+  const tab = el(`tab-${mode}`);
+  tab.addEventListener("click", () => { libraryMode = mode; el<HTMLInputElement>("library-search").value = ""; renderLibrary(); });
+  tab.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault(); libraryMode = mode === "motion" ? "components" : "motion"; el<HTMLInputElement>("library-search").value = ""; renderLibrary(); el(`tab-${libraryMode}`).focus();
+  });
+}
 el("library-close").addEventListener("click", () => el<HTMLDialogElement>("library").close());
+el("library").addEventListener("close", () => { disposeMotionPreviews(); el("library-results").getAnimations({ subtree: true }).forEach(animation => animation.cancel()); });
 el("library-search").addEventListener("input", renderLibrary);
+el("motion-category").addEventListener("change", renderLibrary);
 el("font-size").addEventListener("change", () => changeFontSize(el<HTMLInputElement>("font-size").valueAsNumber));
 el("import").addEventListener("click", () => { flushFields(); host.postMessage({ type: "import" }); });
 el("empty-import").addEventListener("click", () => host.postMessage({ type: "import" }));
@@ -903,7 +1180,8 @@ el("stamp").addEventListener("change", () => { const item = selected(); if (item
 
 /** Preserve native text-field shortcuts while supporting object movement and document history. */
 window.addEventListener("keydown", event => {
-  if (event.isComposing || el<HTMLDialogElement>("library").open || el<HTMLDialogElement>("settings").open || el<HTMLDialogElement>("image-dialog").open) return;
+  if (referencePending) { event.preventDefault(); return; }
+  if (event.isComposing || el<HTMLDialogElement>("reference-preview").open || el<HTMLDialogElement>("library").open || el<HTMLDialogElement>("settings").open || el<HTMLDialogElement>("image-dialog").open) return;
   const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
   const modifier = event.metaKey || event.ctrlKey;
   if (modifier && selected()?.kind === "text" && ["+", "=", "-", "_"].includes(event.key)) {

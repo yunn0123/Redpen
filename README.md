@@ -22,6 +22,13 @@ Lightweight and local. No account or AI API key required. Just paste and start e
 
 ## Updates
 
+### 0.2.10
+
+- Paste multiple fixed background screenshots into one canvas, arranged to the right with 64px gaps. Notes and arrows can span screens. Use Select and double-click a background to replace or delete it; annotations and other backgrounds stay in place, and the last background cannot be deleted. New image still creates movable image objects.
+- Add reference images to requests by pasting into the text field or choosing a file. Stable `[img1]` markers link to previews; references are embedded in the exported SVG and retained on reimport.
+- Added 18 offline motion recipes, including carousels, horizontal parallax, pinned galleries, card stacks, marquees and shared-layout interactions. Interactive previews accompany readable specifications for agents.
+- Drag toolbar buttons within their groups to reorder them, with an insertion indicator and saved preferences. Alt+Arrow keys and a reset option are also available.
+
 ### 0.2.9
 
 - Tools wrap in narrow editor splits so every drawing tool remains reachable.
@@ -66,12 +73,15 @@ Import it back into redpen to keep editing. The export expands to fit your objec
 
 ## Quick tips
 
+- **Motion recipes:** open **Components → Motion**, play a preview, then add the effect to the selected object or draw a new region. 18 offline presets cover interactive components (carousels, swipe stacks, marquees, tabs and expanding cards), scroll-linked effects (horizontal parallax, pinned galleries, card stacks, image reveals and hero zoom), and basic effects. Previews support navigation, dragging or a scroll-progress slider. Exports describe triggers, bounds, timing, loop behavior and reduced-motion fallbacks; no GIF or animation library is required for the handoff.
+- **Your tool order:** drag buttons within either toolbar group; an insertion line follows the drop position. You can also focus a button and use **Alt+Arrow** keys. The order is remembered; reset it in Settings.
+- **Reference images:** paste an image into a request field or click **Add reference image** below it. The text gets an `[img1]` marker, with a thumbnail you can preview or remove. Up to 8 images per request; references are embedded beside their request in the exported SVG and retained when reimported.
 - **Floating controls:** drawing tools sit at the top left; undo, import, export, and the Requests toggle sit at the top right. Requests starts collapsed and opens as a floating panel attached to the right toolbar.
 - **Compact tools:** toggle **Collapse drawing tools** to keep only the active tool visible; hover or focus the toolbar to expand it. This preference is remembered. Zoom controls sit vertically at the bottom left.
 - **Sketch an icon:** the gray placeholder disappears after the first stroke, including in exported SVGs. Clear strokes to restore it.
 - **Comments on the canvas:** hover a numbered comment icon to read a request; click the text field to edit. While typing, the comment stays open. Press Escape or leave the field to apply changes; **More options** opens the sidebar.
 
-- **Paste another image:** adds a movable object. Double-click the background before pasting to replace it while keeping existing objects in place.
+- **Multiple screens:** paste screenshots onto the canvas to add fixed backgrounds, arranged to the right with a 64px gap. Notes and arrows may span screens. Use Select and double-click a background to replace or delete it; annotations and other backgrounds stay in place. The final background cannot be deleted. **New image** still adds a movable image object with its own request.
 - **Select and edit:** drag with Select to select multiple objects; ⌘/Ctrl-click to toggle selection. Drag arrow endpoints to change direction or length. Press Delete to remove objects.
 - **Use the sidebar:** rotate or flip images, or click **＋** beside Requests to add a general request.
 - **Undo / redo:** ⌘/Ctrl Z / ⌘/Ctrl Shift Z. New canvases autosave locally.

@@ -1,7 +1,7 @@
 /** Guard document trust boundaries, zoom-independent geometry, and exported user intent. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agentMarkdown, parseProject, selectionRect, type Project } from "../src/model";
+import { addBackground, replaceBackground, setBackgrounds, projectBackgrounds, BACKGROUND_GAP, agentMarkdown, attachReference, parseProject, projectAssets, selectionRect, type Project } from "../src/model";
 import { exportSvg, readRedpenSvg } from "../src/svg";
 
 /** Supply one valid note so each test changes only the boundary it checks. */
@@ -196,4 +196,118 @@ test("export ignore offers skip non-repositories, ignored files and tracked file
     await writeFile(join(root, "ordinary.svg"), "<svg/>");
     assert.equal((await exportedIgnoreTarget(join(root, "ordinary.svg")))?.path, "ordinary.svg");
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+
+test("reference images validate, keep stable markers, and round-trip through standalone SVG", () => {
+  const project = draft(); project.items[0].comment = "參考這張圖，調整排版";
+  const next = attachReference(project, "note-1", "reference.png", 5, 5);
+  assert.equal(next.items[0].comment, "參考這張圖[img1]，調整排版");
+  assert.equal(project.items[0].references, undefined);
+  assert.deepEqual(projectAssets(next), ["screen.png", "reference.png"]);
+  const source = "data:image/png;base64,AAAA";
+  const svg = exportSvg(next, source, 1200, 800, { "reference.png": { data: source, width: 600, height: 300 } });
+  assert.match(svg, /Reference \[img1\]/);
+  const preview = /<use href="#asset-0"[^>]*width="([^"]+)" height="([^"]+)"/.exec(svg)!;
+  assert.ok(Math.abs(Number(preview[1]) - 440) < .01);
+  assert.ok(Math.abs(Number(preview[2]) - 220) < .01);
+  const restored = readRedpenSvg(svg);
+  assert.deepEqual(restored.project, next);
+  assert.equal(restored.images!["reference.png"].data, source);
+  assert.match(agentMarkdown(next, { width: 1200, height: 800 }), /Reference \[img1\]: reference.png/);
+  next.items[0].comment += " [img7]";
+  const another = attachReference(next, "note-1", "second.png", 0, 0);
+  assert.equal(another.items[0].references![1].id, 8);
+  assert.throws(() => attachReference(next, "missing", "valid.png", 0, 0));
+  assert.throws(() => attachReference(next, "note-1", "../secret.png", 0, 0));
+  assert.throws(() => attachReference(next, "note-1", "valid.png", -1, 0));
+  assert.throws(() => attachReference(next, "note-1", "valid.png", 0, 9999));
+  assert.throws(() => parseProject({ ...next, items: [{ ...next.items[0], references: [{ id: 1, asset: "a.png" }, { id: 1, asset: "b.png" }] }] }));
+  assert.throws(() => parseProject({ ...next, items: [{ ...next.items[0], references: Array.from({ length: 9 }, (_, i) => ({ id: i + 1, asset: "a.png" })) }] }));
+  const limit = draft(); limit.items[0].references = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, asset: "a.png" }));
+  assert.throws(() => attachReference(limit, "note-1", "valid.png", 0, 0));
+  const full = draft(); full.items[0].comment = "x".repeat(8000);
+  assert.throws(() => attachReference(full, "note-1", "valid.png", 0, 0));
+  const base = draft(); base.items[0].references = [{ id: 1, asset: base.image }];
+  assert.match(exportSvg(base, source, 100, 100), /Reference \[img1\]/);
+});
+
+
+test("motion recipes survive SVG round trips as readable agent instructions", async () => {
+  const { motionInstructions } = await import("../src/motion");
+  const project = draft(); project.items[0].motion = "slide-up";
+  const parsed = parseProject(project);
+  assert.equal(parsed.items[0].motion, "slide-up");
+  const svg = exportSvg(project, "data:image/png;base64,AAAA", 1200, 800);
+  assert.match(svg, /Motion: Slide up/); assert.match(svg, /Duration: 280ms/);
+  assert.match(svg, /translateY\(16px\)/); assert.match(svg, /prefers-reduced-motion/);
+  assert.equal(readRedpenSvg(svg).project.items[0].motion, "slide-up");
+  assert.match(agentMarkdown(project, { width: 1200, height: 800 }), /Motion: Slide up/);
+  assert.match(motionInstructions("stagger"), /60ms/);
+  assert.throws(() => parseProject({ ...project, items: [{ ...project.items[0], motion: "unknown" }] }));
+});
+
+test("toolbar preferences discard unknown controls and preserve new defaults", async () => {
+  const { toolbarOrder, toolbarGroups } = await import("../src/toolbar");
+  assert.deepEqual(toolbarOrder(undefined), toolbarGroups);
+  const normalized = toolbarOrder({ drawing: ["text", "unknown", "text", 7], actions: ["export"] });
+  assert.equal(normalized.drawing[0], "text");
+  assert.equal(normalized.drawing.length, toolbarGroups.drawing.length);
+  assert.equal(normalized.actions[0], "export");
+  assert.deepEqual(toolbarOrder(normalized), normalized);
+  assert.deepEqual(toolbarOrder({ drawing: "bad", actions: null }), toolbarGroups);
+});
+
+
+test("advanced motion patterns describe interaction boundaries and scroll timing in standalone exports", async () => {
+  const { motionLibrary, motionInstructions } = await import("../src/motion");
+  assert.equal(motionLibrary.length, 18);
+  assert.equal(new Set(motionLibrary.map(motion => motion.id)).size, 18);
+  assert.equal(motionLibrary.filter(motion => motion.category !== "Basic").length, 12);
+  for (const motion of motionLibrary) {
+    const project = draft(); project.items[0].motion = motion.id;
+    const svg = exportSvg(project, "data:image/png;base64,AAAA", 1200, 800);
+    assert.equal(readRedpenSvg(svg).project.items[0].motion, motion.id);
+    assert.ok(svg.includes(`Motion: ${motion.name}`));
+    if (motion.category === "Scroll") {
+      assert.ok(svg.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").includes("no fixed playback duration"));
+      assert.ok(!svg.includes("Duration: 0ms"));
+    }
+  }
+  assert.match(motionInstructions("carousel"), /20%/);
+  assert.match(motionInstructions("carousel-parallax"), /35%/);
+  assert.match(motionInstructions("horizontal-gallery"), /track width - viewport width/);
+  assert.match(motionInstructions("swipe-stack"), /25%/);
+  assert.match(motionInstructions("marquee"), /pause control/);
+});
+
+
+test("multiple fixed backgrounds keep spacing, annotation coordinates, crop assets and SVG originals", () => {
+  const project = draft();
+  project.items.push({ id: "cross-arrow", kind: "arrow", x: 1100, y: 400, width: 500, height: 0, color: "#ff0000", text: "", comment: "Go to the next screen" });
+  project.items.push({ id: "copy", kind: "crop", x: 100, y: 400, width: 20, height: 20, color: "#ff0000", text: "", comment: "", source: { x: 0, y: 0, width: 20, height: 20 } });
+  const next = addBackground(project, "second.png", 390, 844, 1200, 800, "screen-2");
+  assert.equal(next.backgrounds![1].x, 1200 + BACKGROUND_GAP);
+  assert.equal(next.backgrounds![1].width, 390); assert.equal(next.backgrounds![1].height, 844);
+  const third = addBackground(next, "third.png", 400, 900, 1200, 800, "screen-3");
+  assert.equal(third.backgrounds![2].x, 1200 + BACKGROUND_GAP + 390 + BACKGROUND_GAP);
+  const removed = setBackgrounds(third, third.backgrounds!.slice(1));
+  assert.equal(removed.image, "second.png");
+  assert.deepEqual(removed.backgrounds, third.backgrounds!.slice(1));
+  assert.deepEqual(removed.items.slice(0, 2), project.items.slice(0, 2));
+  assert.equal(removed.items[2].asset, "screen.png");
+  const replaced = replaceBackground(removed, "screen-2", "replacement.png", 200, 300, 390, 844);
+  assert.equal(replaced.backgrounds![0].x, removed.backgrounds![0].x);
+  assert.deepEqual(replaced.backgrounds![1], removed.backgrounds![1]);
+  assert.deepEqual(replaced.items, removed.items);
+  assert.throws(() => setBackgrounds(removed, []), /At least one/);
+  assert.equal(projectBackgrounds(project, 1200, 800).length, 1);
+  assert.throws(() => parseProject({ ...next, backgrounds: [] }));
+  assert.throws(() => parseProject({ ...next, image: "mismatch.png" }));
+  const source = "data:image/png;base64,AAAA";
+  const svg = exportSvg(next, source, 1200, 800, { "second.png": { data: source, width: 390, height: 844 } });
+  assert.match(svg, /data-background="screen-2"/);
+  assert.deepEqual(readRedpenSvg(svg).project, next);
+  assert.ok(projectAssets(next).includes("second.png"));
+  assert.equal(project.items[2].asset, undefined);
 });

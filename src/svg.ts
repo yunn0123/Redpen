@@ -1,5 +1,6 @@
 /** Export a self-contained SVG with real vector layers, readable requirements and recoverable draft metadata. */
-import { MAX_IMAGE_BYTES, MAX_PIXELS, kindNames, parseProject, projectAssets, type Item, type Project } from "./model";
+import { MAX_IMAGE_BYTES, MAX_PIXELS, kindNames, parseProject, projectAssets, projectBackgrounds, type Item, type Project } from "./model";
+import { motionInstructions } from "./motion";
 import { iconLibrary, iconLicense } from "./editor/library";
 
 /** Escape user text once at the XML boundary, including characters illegal in XML 1.0. */
@@ -86,7 +87,12 @@ export function exportSvg(input: Project, source: string, width: number, height:
     if (!asset || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(asset.data) || asset.data.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64
       || ![asset.width, asset.height].every(Number.isSafeInteger) || asset.width < 1 || asset.height < 1 || asset.width * asset.height > MAX_PIXELS) throw new Error("The image object data is invalid.");
   }
-  let left = 0, top = 0, right = width, bottom = height;
+  const backgrounds = projectBackgrounds(project, width, height);
+  let left = Math.min(0, ...backgrounds.map(background => background.x)), top = Math.min(0, ...backgrounds.map(background => background.y));
+  let right = Math.max(...backgrounds.map(background => background.x + background.width)), bottom = Math.max(...backgrounds.map(background => background.y + background.height));
+  const originals = backgrounds.map(background => background.asset === project.image
+    ? `<g data-background="${xml(background.id)}" transform="translate(${background.x} ${background.y}) scale(${background.width / width} ${background.height / height})"><use href="#source-image"/></g>`
+    : `<use data-background="${xml(background.id)}" href="#asset-${assets.indexOf(background.asset)}" x="${background.x}" y="${background.y}" width="${background.width}" height="${background.height}"/>`).join("\n");
   for (const item of project.items) {
     if (item.kind === "comment") continue;
     const padding = item.kind === "arrow" ? 14 : 3;
@@ -111,9 +117,20 @@ export function exportSvg(input: Project, source: string, width: number, height:
     if (item.text && item.text !== "placeholder") content.push(`Text / icon: ${item.text}`);
     if (item.fontSize) content.push(`Font size: ${item.fontSize} px`);
     if (item.source) content.push(`Copy source: x=${item.source.x}, y=${item.source.y}, w=${item.source.width}, h=${item.source.height}`);
+    if (item.motion) content.push(motionInstructions(item.motion));
     content.push(item.comment || "No written request; refer to the image." );
     for (const line of lines(content.join("\n"), panelWidth - 40, 18)) {
       notes.push(`<text x="${panelX + 20}" y="${cursor}" font-size="18" fill="#202734">${xml(line)}</text>`); cursor += 27;
+    }
+    for (const reference of item.references ?? []) {
+      const image = reference.asset === project.image ? { width, height } : images[reference.asset];
+      const scale = Math.min(1, (panelWidth - 40) / image.width, 240 / image.height);
+      notes.push(`<text x="${panelX + 20}" y="${cursor}" font-size="16" fill="#202734">Reference [img${reference.id}]</text>`);
+      cursor += 12;
+      notes.push(reference.asset === project.image
+        ? `<svg x="${panelX + 20}" y="${cursor}" width="${image.width * scale}" height="${image.height * scale}" viewBox="0 0 ${width} ${height}"><use href="#source-image"/></svg>`
+        : `<use href="#asset-${assets.indexOf(reference.asset)}" x="${panelX + 20}" y="${cursor}" width="${image.width * scale}" height="${image.height * scale}"/>`);
+      cursor += image.height * scale + 28;
     }
     notes.push("</g>"); cursor += 22;
   }
@@ -123,11 +140,11 @@ export function exportSvg(input: Project, source: string, width: number, height:
   const modified = project.items.filter(item => !["note", "comment"].includes(item.kind)).map(item => `<g id="item-${item.id}">${shape(item, assets)}</g>`).join("\n");
   const markers = project.items.map((item, i) => item.kind === "comment" ? "" : `${item.kind === "note" ? `<g id="item-${item.id}">${shape(item, assets)}</g>` : ""}<g><rect x="${item.x}" y="${item.y}" width="28" height="24" rx="3" fill="${item.color}"/><text x="${item.x + 14}" y="${item.y + 17}" font-size="14" fill="white" text-anchor="middle">${i + 1}</text></g>`).join("\n");
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${outputRight - left}" height="${outputBottom - top}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
-<title>redpen</title><desc>original contains the screenshot; modified contains editable changes over the original; annotations contains numbered markers, object types, and full requests. Coordinates are relative to the top-left corner of the original image.</desc>
+<title>redpen</title><desc>original contains all fixed background screenshots; modified contains editable changes over the original; annotations contains numbered markers, object types, and full requests. Coordinates use a shared canvas origin; annotations may span multiple backgrounds.</desc>
 ${project.items.some(item => item.kind === "stamp" && iconLibrary.some(icon => item.text === `icon:${icon.id}`)) ? `<metadata id="redpen-icon-license">${xml(iconLicense)}</metadata>` : ""}
 <metadata id="redpen-draft">${xml(JSON.stringify({ project, width, height }))}</metadata>
 <defs><image id="source-image" width="${width}" height="${height}" href="${source}"/>${assets.map((name, i) => `<symbol id="asset-${i}" viewBox="0 0 ${images[name].width} ${images[name].height}" preserveAspectRatio="none"><image id="raster-${i}" data-asset="${xml(name)}" width="${images[name].width}" height="${images[name].height}" href="${images[name].data}"/></symbol>`).join("")}</defs>
-<g id="original" inkscape:groupmode="layer" inkscape:label="original"><use href="#source-image"/></g>
+<g id="original" inkscape:groupmode="layer" inkscape:label="original">${originals}</g>
 <g id="modified" inkscape:groupmode="layer" inkscape:label="modified">${modified}</g>
 <g id="annotations" inkscape:groupmode="layer" inkscape:label="annotations">${markers}${project.items.length ? `<rect x="${panelX}" y="${top}" width="${panelWidth}" height="${outputBottom - top}" fill="#ffffff"/>` : ""}${notes.join("\n")}</g>
 </svg>`;

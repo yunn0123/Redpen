@@ -2,9 +2,10 @@
 import { exportSvg, readRedpenSvg } from "./svg";
 import { appendIgnoreRule, exportedIgnoreTarget } from "./gitignore";
 import * as vscode from "vscode";
+import { toolbarOrder } from "./toolbar";
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
-import { DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, parseProject, projectAssets, type Project } from "./model";
+import { addBackground, replaceBackground, attachReference, DEFAULT_HANDOFF_PROMPT, MAX_IMAGE_BYTES, MAX_ITEMS, MAX_PIXELS, parseProject, projectAssets, type Project } from "./model";
 
 const viewType = "redpen.editor";
 const encoder = new TextEncoder();
@@ -105,18 +106,21 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
     let items: Project["items"] = [];
     await vscode.workspace.fs.createDirectory(this.cacheUri);
     let importedBase: string | undefined;
+    let backgrounds: Project["backgrounds"];
     const renamed: Record<string, string> = {};
     if (source && /\.svg$/i.test(source.path)) {
       if ((await vscode.workspace.fs.stat(source)).size > 75_000_000) throw new Error("The SVG draft is too large.");
       const imported = readRedpenSvg(new TextDecoder().decode(await vscode.workspace.fs.readFile(source)));
-      screenshot = pastedScreenshot(imported.source); items = imported.project.items; importedBase = imported.project.image;
+      screenshot = pastedScreenshot(imported.source); items = imported.project.items; backgrounds = imported.project.backgrounds; importedBase = imported.project.image;
       for (const [name, asset] of Object.entries(imported.images ?? {})) renamed[name] = await this.storeScreenshot(this.cacheUri, pastedScreenshot(asset.data));
     } else if (source) screenshot = await this.readScreenshot(source);
     const target = vscode.Uri.joinPath(this.cacheUri, `canvas-${randomUUID().slice(0, 8)}.redpen.json`);
     const image = screenshot ? await this.storeScreenshot(this.cacheUri, screenshot) : "";
     if (importedBase) renamed[importedBase] = image;
-    items = items.map(item => item.asset ? { ...item, asset: renamed[item.asset] } : item);
-    const serialized = JSON.stringify({ version: 1, image, items }, null, 2);
+    items = items.map(item => ({ ...item, ...(item.asset ? { asset: renamed[item.asset] } : {}),
+      ...(item.references ? { references: item.references.map(reference => ({ ...reference, asset: renamed[reference.asset] })) } : {}),
+    }));
+    const serialized = JSON.stringify({ version: 1, image, items, ...(backgrounds ? { backgrounds: backgrounds.map(background => ({ ...background, asset: renamed[background.asset] })) } : {}) }, null, 2);
     if (serialized.length > 3_000_000) throw new Error("The draft is too large. Remove some objects or text.");
     await vscode.workspace.fs.writeFile(target, encoder.encode(serialized));
     await vscode.commands.executeCommand("vscode.openWith", target, viewType);
@@ -185,10 +189,28 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
     const insert = async (screenshot: Screenshot, mode: unknown = "new", geometry?: Record<string, unknown>): Promise<void> => {
       const current = read();
       if (current.image && mode === "new") { await this.create(undefined, screenshot); return; }
-      if (mode !== "new" && mode !== "replace" && mode !== "asset") throw new Error("The image insertion mode is invalid.");
+      if (mode !== "new" && mode !== "replace" && mode !== "asset" && mode !== "reference" && mode !== "background") throw new Error("The image insertion mode is invalid.");
       let totalBytes = screenshot.bytes.byteLength;
       for (const name of projectAssets(current)) totalBytes += (await vscode.workspace.fs.stat(vscode.Uri.joinPath(directory, name))).size;
       if (totalBytes > 48 * 1024 * 1024) throw new Error("Images exceed the 48 MB total limit. Resize them and try again.");
+      if (mode === "background" || mode === "replace") {
+        const width = geometry?.width, height = geometry?.height, sourceWidth = geometry?.sourceWidth, sourceHeight = geometry?.sourceHeight;
+        if ([width, height, sourceWidth, sourceHeight].some(value => typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)) throw new Error("The background dimensions are invalid.");
+        const update = (asset: string) => mode === "replace"
+          ? replaceBackground(current, String(geometry?.backgroundId), asset, width as number, height as number, sourceWidth as number, sourceHeight as number)
+          : addBackground(current, asset, width as number, height as number, sourceWidth as number, sourceHeight as number, randomUUID());
+        update("pending.png");
+        await apply(update(await this.storeScreenshot(directory, screenshot))); return;
+      }
+      if (mode === "reference") {
+        if (!current.image) throw new Error("Paste a screenshot before adding references.");
+        const width = geometry?.width, height = geometry?.height;
+        if (typeof width !== "number" || typeof height !== "number" || !Number.isSafeInteger(width) || !Number.isSafeInteger(height)
+          || width < 1 || height < 1 || width * height > MAX_PIXELS) throw new Error("The reference image dimensions are invalid.");
+        const next = attachReference(current, geometry?.itemId, "pending.png", geometry?.start, geometry?.end);
+        next.items.find(item => item.id === geometry?.itemId)!.references!.at(-1)!.asset = await this.storeScreenshot(directory, screenshot);
+        await apply(next); return;
+      }
       if (mode === "asset" && current.image) {
         const width = geometry?.width, height = geometry?.height, x = geometry?.x, y = geometry?.y;
         if (typeof width !== "number" || typeof height !== "number" || !Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || width * height > MAX_PIXELS
@@ -223,8 +245,10 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
                 if (action) return vscode.commands.executeCommand("redpen.showGuide");
               }).then(undefined, report);
             }
-            await webview.postMessage({ type: "settings", prompt: this.settings.get("handoffPrompt", DEFAULT_HANDOFF_PROMPT), toolbarCollapsed: this.settings.get("toolbarCollapsed", false) });
+            await webview.postMessage({ type: "settings", prompt: this.settings.get("handoffPrompt", DEFAULT_HANDOFF_PROMPT), toolbarCollapsed: this.settings.get("toolbarCollapsed", false), toolbarOrder: toolbarOrder(this.settings.get("toolbarOrder")) });
             await sendState(); break;
+          case "toolbarOrder":
+            await this.settings.update("toolbarOrder", toolbarOrder(message.order)); break;
           case "toolbarPreference":
             if (typeof message.collapsed !== "boolean") throw new Error("The toolbar preference must be on or off.");
             await this.settings.update("toolbarCollapsed", message.collapsed); break;
@@ -246,7 +270,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
             const project = parseProject(message.project);
             const allowed = new Set(projectAssets(read()));
             if (projectAssets(project).some(name => !allowed.has(name))) throw new Error("An edit cannot reference a new image source.");
-            if (project.image !== read().image) throw new Error("An edit cannot replace the original screenshot.");
+            if (project.image !== read().image && !project.backgrounds) throw new Error("An edit cannot replace the original screenshot.");
             if (!Number.isSafeInteger(message.revision) || message.revision < 1) throw new Error("The edit revision is invalid.");
             await apply(project, message.revision);
             break;

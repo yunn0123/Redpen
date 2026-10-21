@@ -1,6 +1,7 @@
+import { toolbarOrder } from "./toolbar";
 /** Browser-only host simulator exercises the shipped editor without requiring a running extension host. */
 import { exportSvg } from "./svg";
-import { DEFAULT_HANDOFF_PROMPT, agentMarkdown, parseProject, projectAssets, type Project } from "./model";
+import { addBackground, replaceBackground, attachReference, DEFAULT_HANDOFF_PROMPT, agentMarkdown, parseProject, projectAssets, type Project } from "./model";
 
 declare global {
   interface Window {
@@ -48,8 +49,10 @@ window.acquireVsCodeApi = () => ({
   async postMessage(message: any) {
     switch (message.type) {
       case "ready":
-        window.postMessage({ type: "settings", prompt: localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT, toolbarCollapsed: localStorage.getItem("toolbar-collapsed") === "true" }, location.origin);
+        window.postMessage({ type: "settings", prompt: localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT, toolbarCollapsed: localStorage.getItem("toolbar-collapsed") === "true", toolbarOrder: toolbarOrder(JSON.parse(localStorage.getItem("toolbar-order") ?? "null")) }, location.origin);
         state(); break;
+      case "toolbarOrder":
+        localStorage.setItem("toolbar-order", JSON.stringify(toolbarOrder(message.order))); break;
       case "toolbarPreference":
         localStorage.setItem("toolbar-collapsed", String(message.collapsed)); break;
       case "settings":
@@ -59,26 +62,36 @@ window.acquireVsCodeApi = () => ({
         window.redpenTest.copiedPrompt = (localStorage.getItem("handoff-prompt") ?? DEFAULT_HANDOFF_PROMPT).replaceAll("{svgPath}", "/demo/redpen.svg");
         window.postMessage({ type: "promptCopied" }, location.origin); break;
       case "paste": {
-        window.redpenTest.pastedImages.push(message.image);
-        const name = `clipboard-${crypto.randomUUID()}.png`; imageFiles[name] = message.image;
-        let id: string | undefined;
-        if (project.image && message.mode === "asset") {
-          id = crypto.randomUUID(); const scale = Math.min(1, 480 / Math.max(message.width, message.height));
-          project = { ...project, items: [...project.items, { id, kind: "image", asset: name, x: message.x, y: message.y, width: message.width * scale, height: message.height * scale, color: "#f35e5e", text: "", comment: "" }] };
-        } else {
-          project = { ...project, image: name, items: project.items.map(item => item.kind === "crop" && !item.asset ? { ...item, asset: project.image } : item) };
+        try {
+          window.redpenTest.pastedImages.push(message.image);
+          const name = `clipboard-${crypto.randomUUID()}.png`; imageFiles[name] = message.image;
+          let id: string | undefined;
+          if (message.mode === "background") {
+            project = addBackground(project, name, message.width, message.height, message.sourceWidth, message.sourceHeight, crypto.randomUUID());
+          } else if (message.mode === "replace") {
+            project = replaceBackground(project, message.backgroundId, name, message.width, message.height, message.sourceWidth, message.sourceHeight);
+          } else if (message.mode === "reference") {
+            project = attachReference(project, message.itemId, name, message.start, message.end);
+          } else if (project.image && message.mode === "asset") {
+            id = crypto.randomUUID(); const scale = Math.min(1, 480 / Math.max(message.width, message.height));
+            project = { ...project, items: [...project.items, { id, kind: "image", asset: name, x: message.x, y: message.y, width: message.width * scale, height: message.height * scale, color: "#f35e5e", text: "", comment: "" }] };
+          } else {
+            project = { ...project, image: name, items: project.items.map(item => item.kind === "crop" && !item.asset ? { ...item, asset: project.image } : item) };
+          }
+          history = history.slice(0, cursor + 1); history.push(structuredClone(project)); cursor++;
+          localStorage.setItem("redpen-demo-assets", JSON.stringify(imageFiles));
+          localStorage.setItem("redpen-demo", JSON.stringify(project)); state();
+          if (id) window.postMessage({ type: "selectItem", id }, location.origin);
+        } catch (error) {
+          window.postMessage({ type: "error", message: error instanceof Error ? error.message : String(error) }, location.origin);
         }
-        history = history.slice(0, cursor + 1); history.push(structuredClone(project)); cursor++;
-        localStorage.setItem("redpen-demo-assets", JSON.stringify(imageFiles));
-        localStorage.setItem("redpen-demo", JSON.stringify(project)); state();
-        if (id) window.postMessage({ type: "selectItem", id }, location.origin);
         break;
       }
       case "edit":
         project = parseProject(message.project); history = history.slice(0, cursor + 1); history.push(structuredClone(project)); cursor++;
         localStorage.setItem("redpen-demo", JSON.stringify(project)); state(message.revision); break;
-      case "undo": if (cursor > 0) { project = structuredClone(history[--cursor]); state(); } break;
-      case "redo": if (cursor < history.length - 1) { project = structuredClone(history[++cursor]); state(); } break;
+      case "undo": if (cursor > 0) { project = structuredClone(history[--cursor]); localStorage.setItem("redpen-demo", JSON.stringify(project)); state(); } break;
+      case "redo": if (cursor < history.length - 1) { project = structuredClone(history[++cursor]); localStorage.setItem("redpen-demo", JSON.stringify(project)); state(); } break;
       case "save": localStorage.setItem("redpen-demo", JSON.stringify(project)); break;
       case "import": project = { version: 1, image: "sample.png", items: [] }; history = [structuredClone(project)]; cursor = 0; state(); break;
       case "export": {
