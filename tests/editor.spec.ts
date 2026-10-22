@@ -924,3 +924,37 @@ test("copy regions use the selected background and replacing that background pre
   expect(next.items[0].asset).toBe(crop.asset); expect(next.items[0].source).toEqual(crop.source);
   expect(next.items[0].comment).toBe("保留這個參考區塊");
 });
+
+test("comment popovers drag without losing text focus and reset when reopened", async ({ page }) => {
+  await page.getByRole("button", { name: "Hide requests", exact: true }).click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  const popup = page.locator("#comment-popover"), field = page.locator("#popover-comment"), handle = page.getByRole("button", { name: "Move comment", exact: true });
+  await field.fill("修改這個按鈕的排版");
+  await field.evaluate((element: HTMLTextAreaElement) => element.setSelectionRange(3, 3));
+  const original = (await popup.boundingBox())!;
+  const heading = (await handle.boundingBox())!;
+  await field.dispatchEvent("compositionstart", { data: "" });
+  await drag(page, { x: heading.x + 30, y: heading.y + 8 }, { x: heading.x - 130, y: heading.y + 108 });
+  const moved = (await popup.boundingBox())!;
+  expect(moved.x).toBeCloseTo(original.x - 160, 0); expect(moved.y).toBeCloseTo(original.y + 100, 0);
+  await expect(field).toBeFocused(); await expect(field).toHaveValue("修改這個按鈕的排版");
+  expect(await field.evaluate((element: HTMLTextAreaElement) => element.selectionStart)).toBe(3);
+  await field.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await expect(field).toBeFocused();
+  await page.keyboard.insertText("中文"); await field.dispatchEvent("compositionend", { data: "中文" });
+  await expect(field).toHaveValue("修改這中文個按鈕的排版");
+  await field.press("Tab"); // Field save rerenders the canvas, but must not move the popup.
+  expect((await popup.boundingBox())!.x).toBeCloseTo(moved.x, 0);
+  expect((await popup.boundingBox())!.y).toBeCloseTo(moved.y, 0);
+  await page.getByRole("button", { name: "Close comment", exact: true }).click();
+  await page.getByRole("button", { name: "Comment 1: Region note", exact: true }).click();
+  await expect(field).toBeFocused();
+  const reopened = (await popup.boundingBox())!;
+  expect(reopened.x).toBeCloseTo(original.x, 0); expect(reopened.y).toBeCloseTo(original.y, 0);
+  await handle.focus(); await page.keyboard.press("ArrowLeft");
+  expect((await popup.boundingBox())!.x).toBeCloseTo(original.x - 10, 0);
+  const currentHeading = (await handle.boundingBox())!;
+  await drag(page, { x: currentHeading.x + 20, y: currentHeading.y + 8 }, { x: -100, y: -100 });
+  const bounded = (await popup.boundingBox())!;
+  expect(bounded.x).toBe(8); expect(bounded.y).toBe(8);
+});

@@ -22,6 +22,11 @@ Lightweight and local. No account or AI API key required. Just paste and start e
 
 ## Updates
 
+### 0.2.11
+
+- Drag a canvas comment popup by its heading to move it out of the way while typing. Text focus, caret position, and IME composition stay intact.
+- The popup stays within the canvas and keeps its position until closed; reopening restores its default position. Focus the heading and use arrow keys to move it with the keyboard.
+
 ### 0.2.10
 
 - Paste multiple fixed background screenshots into one canvas, arranged to the right with 64px gaps. Notes and arrows can span screens. Use Select and double-click a background to replace or delete it; annotations and other backgrounds stay in place, and the last background cannot be deleted. New image still creates movable image objects.

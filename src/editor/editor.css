@@ -237,3 +237,7 @@ input.preview-progress { padding: 0; height: 24px; border: 0; accent-color: var(
 @media (prefers-reduced-motion: reduce) {
   .motion-widget * { transition: none !important; }
 }
+
+#popover-title { flex: 1; min-width: 0; cursor: grab; touch-action: none; user-select: none; padding: 4px 0; }
+#popover-title:active { cursor: grabbing; }
+#popover-title:focus-visible { outline: 2px solid var(--vscode-focusBorder, #5fd6bd); outline-offset: 2px; }

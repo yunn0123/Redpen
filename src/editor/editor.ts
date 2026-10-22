@@ -30,7 +30,7 @@ app.innerHTML = `
     <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">${icon("minus")}</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">${icon("plus")}</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
   <div id="comment-markers" aria-label="Canvas comments"></div>
     <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
-      <div class="popover-heading"><strong id="popover-title"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
+      <div class="popover-heading"><strong id="popover-title" role="button" tabindex="0" aria-label="Move comment" title="Drag to move · Arrow keys to move"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
       <label for="popover-comment">Request<textarea id="popover-comment" maxlength="8000" rows="2" placeholder="Describe what should change…"></textarea></label>
       <div id="popover-references" class="reference-list"></div><button id="popover-add-reference" class="add-reference">Add reference image</button>
       <div class="popover-footer"><small>Enter to finish<br>Shift+Enter for a new line</small><button id="popover-details">More options</button></div>
@@ -103,6 +103,8 @@ let toastTimer: ReturnType<typeof setTimeout>;
 let exporting = false;
 let fatal = false;
 let popoverId: string | undefined;
+let popoverPosition: Point | undefined;
+let popoverDrag: { pointerId: number; start: Point; origin: Point } | undefined;
 let popoverTimer: ReturnType<typeof setTimeout> | undefined;
 const commentMarkers = new Map<string, HTMLButtonElement>();
 
@@ -360,7 +362,7 @@ function savePopover(): void {
 function closePopover(): void {
   clearTimeout(popoverTimer);
   savePopover();
-  popoverId = undefined;
+  popoverId = undefined; popoverPosition = undefined; popoverDrag = undefined;
   el("comment-popover").hidden = true;
   commentMarkers.forEach(button => button.setAttribute("aria-expanded", "false"));
 }
@@ -369,7 +371,7 @@ function closePopover(): void {
 function deferPopoverClose(): void {
   clearTimeout(popoverTimer);
   popoverTimer = setTimeout(() => {
-    if (!referencePending && !referencePicker && !el<HTMLDialogElement>("reference-preview").open && !el("comment-popover").contains(document.activeElement)) closePopover();
+    if (!popoverDrag && !referencePending && !referencePicker && !el<HTMLDialogElement>("reference-preview").open && !el("comment-popover").contains(document.activeElement)) closePopover();
   }, 250);
 }
 
@@ -382,7 +384,7 @@ function openPopover(id: string, focus = false): void {
   clearTimeout(popoverTimer);
   if (popoverId !== id) {
     flushFields();
-    popoverId = id;
+    popoverId = id; popoverPosition = undefined;
     const item = project?.items.find(entry => entry.id === id);
     if (!item) { closePopover(); return; }
     field.value = item.comment;
@@ -409,8 +411,12 @@ function positionComments(): void {
     const popup = el("comment-popover");
     const width = popup.offsetWidth, height = popup.offsetHeight;
     const left = x + 48 + width <= stage.width() - 8 ? x + 48 : x - width - 8;
-    popup.style.left = `${Math.max(8, Math.min(stage.width() - width - 8, left))}px`;
-    popup.style.top = `${Math.max(72, Math.min(stage.height() - height - 8, y))}px`;
+    const position = {
+      x: Math.max(8, Math.min(stage.width() - width - 8, popoverPosition?.x ?? left)),
+      y: Math.max(popoverPosition ? 8 : 72, Math.min(stage.height() - height - 8, popoverPosition?.y ?? y)),
+    };
+    if (popoverPosition) popoverPosition = position;
+    popup.style.left = `${position.x}px`; popup.style.top = `${position.y}px`;
   }
 }
 
@@ -1060,6 +1066,30 @@ el("collapse-tools").addEventListener("click", () => {
   host.postMessage({ type: "toolbarPreference", collapsed });
 });
 el("toggle-sidebar").addEventListener("click", () => { flushFields(); showSidebar(Boolean(el("sidebar").hidden)); });
+/** Moving the heading preserves the field's focus, caret and active IME session. */
+const popoverHandle = el("popover-title");
+popoverHandle.addEventListener("pointerdown", event => {
+  if (event.button !== 0) return;
+  event.preventDefault(); clearTimeout(popoverTimer);
+  const popup = el("comment-popover");
+  popoverDrag = { pointerId: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin: { x: popup.offsetLeft, y: popup.offsetTop } };
+  popoverHandle.setPointerCapture(event.pointerId);
+});
+popoverHandle.addEventListener("pointermove", event => {
+  if (!popoverDrag || popoverDrag.pointerId !== event.pointerId) return;
+  popoverPosition = { x: popoverDrag.origin.x + event.clientX - popoverDrag.start.x, y: popoverDrag.origin.y + event.clientY - popoverDrag.start.y };
+  positionComments();
+});
+for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) popoverHandle.addEventListener(type, () => { popoverDrag = undefined; });
+popoverHandle.addEventListener("keydown", event => {
+  if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); el("popover-comment").focus(); return; }
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault(); event.stopPropagation();
+  const popup = el("comment-popover"), step = event.shiftKey ? 40 : 10;
+  popoverPosition = { x: popup.offsetLeft + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0), y: popup.offsetTop + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0) };
+  positionComments();
+});
+
 /** A focused popup stays open while typing, including IME composition and pointer travel. */
 el("comment-popover").addEventListener("mouseenter", () => clearTimeout(popoverTimer));
 el("comment-popover").addEventListener("mouseleave", deferPopoverClose);
