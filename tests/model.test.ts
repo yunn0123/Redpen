@@ -80,7 +80,11 @@ test("SVG carries independent layers, escaped text and a recoverable source with
   assert.throws(() => readRedpenSvg('<svg><script>alert(1)</script></svg>'));
   assert.throws(() => exportSvg(project, "https://example.com/image.png", 800, 600));
   project.items[0].x = 100_000;
-  assert.throws(() => exportSvg(project, source, 800, 600), /16 million/);
+  const large = exportSvg(project, source, 800, 600);
+  const size = /^<svg[^>]* width="(\d+)" height="(\d+)"/.exec(large)!;
+  assert.ok(Number(size[1]) * Number(size[2]) <= 16_000_000);
+  assert.match(large, /x="100000"/);
+  assert.deepEqual(readRedpenSvg(large), { project, source });
 });
 
 test("icon strokes are bounded normalized vectors and outline needs no comment", () => {
@@ -310,4 +314,25 @@ test("multiple fixed backgrounds keep spacing, annotation coordinates, crop asse
   assert.deepEqual(readRedpenSvg(svg).project, next);
   assert.ok(projectAssets(next).includes("second.png"));
   assert.equal(project.items[2].asset, undefined);
+});
+
+
+test("a lone remaining offset background exports without empty space back to the origin", () => {
+  const project: Project = { version: 1, image: "screen.png", items: [], backgrounds: [{ id: "remaining", asset: "screen.png", x: 12000, y: 5000, width: 800, height: 600 }] };
+  const source = "data:image/png;base64,aGVsbG8=";
+  const svg = exportSvg(project, source, 800, 600);
+  assert.match(svg, /width="800" height="600" viewBox="12000 5000 800 600"/);
+  assert.deepEqual(readRedpenSvg(svg), { project, source });
+});
+
+test("a single near-limit screenshot with annotations exports fully with a bounded display size", () => {
+  const project = draft();
+  project.items[0].comment = "保留完整註解";
+  const source = "data:image/png;base64,aGVsbG8=";
+  const svg = exportSvg(project, source, 4000, 4000);
+  const size = /^<svg[^>]* width="(\d+)" height="(\d+)"/.exec(svg)!;
+  assert.ok(Number(size[1]) * Number(size[2]) <= 16_000_000);
+  assert.match(svg, /viewBox="0 0 4504 4000"/);
+  assert.match(svg, /保留完整註解/);
+  assert.deepEqual(readRedpenSvg(svg), { project, source });
 });

@@ -1,9 +1,9 @@
 {
   "name": "redpen-ui-markup",
-  "displayName": "redpen — UI Markup for AI",
+  "displayName": "redpen \u2014 UI Markup for AI",
   "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "publisher": "yunn030123",
   "license": "MIT",
   "repository": {
@@ -32,6 +32,14 @@
       {
         "command": "redpen.showGuide",
         "title": "redpen: Show Getting Started"
+      },
+      {
+        "command": "redpen.openRecent",
+        "title": "redpen: Open Recent Canvas"
+      },
+      {
+        "command": "redpen.deleteCanvases",
+        "title": "redpen: Delete Saved Canvases"
       }
     ],
     "customEditors": [
@@ -62,7 +70,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/model.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "test:e2e": "playwright test",
     "dev": "node scripts/dev.mjs",
     "test:vscode": "playwright test --config playwright.native.config.ts",

@@ -22,6 +22,12 @@ Lightweight and local. No account or AI API key required. Just paste and start e
 
 ## Updates
 
+### 0.2.12
+
+- Reopen locally saved drafts with **redpen: Open Recent Canvas** in the Command Palette. Select drafts to permanently delete with **redpen: Delete Saved Canvases**; confirmation is required, shared images are retained, and exported SVG files are unaffected.
+- Large SVG exports now reduce their default display size while preserving all content, original images, coordinates, and editable data. Removed backgrounds no longer leave unnecessary empty space back to the canvas origin.
+- Update the extension directly without clearing its storage to retain local drafts. Reopen the same workspace/window to find its saved canvases.
+
 ### 0.2.11
 
 - Drag a canvas comment popup by its heading to move it out of the way while typing. Text focus, caret position, and IME composition stay intact.
@@ -92,6 +98,8 @@ Import it back into redpen to keep editing. The export expands to fit your objec
 - **Undo / redo:** ⌘/Ctrl Z / ⌘/Ctrl Shift Z. New canvases autosave locally.
 
 ## Notifications & saved work
+
+- Use **redpen: Open Recent Canvas** in the Command Palette to reopen a locally saved draft in the current workspace/window. **redpen: Delete Saved Canvases** lets you select drafts to permanently delete after closing canvas tabs and confirming. Unused images are cleaned up; exported SVG files are kept.
 
 - Exporting into a local Git repository offers to add that SVG to `.gitignore`. The file changes only if you choose **Add to .gitignore**; already ignored or tracked SVGs are skipped.
 - Notifications start with **redpen:**. Export success offers **Copy handoff prompt**; errors explain what to fix. Canceling the save dialog does not export a file.

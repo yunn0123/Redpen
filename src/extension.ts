@@ -65,6 +65,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(viewType, provider, { supportsMultipleEditorsPerDocument: false }),
     vscode.commands.registerCommand("redpen.open", (uri?: vscode.Uri) => provider.create(uri).catch(report)),
+    vscode.commands.registerCommand("redpen.openRecent", () => provider.openRecent().catch(report)),
+    vscode.commands.registerCommand("redpen.deleteCanvases", () => provider.deleteCanvases().catch(report)),
     vscode.commands.registerCommand("redpen.showGuide", async () => {
       // VSIX packaging normalizes README.md to readme.md on case-sensitive filesystems.
       try {
@@ -83,6 +85,67 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
 
   /** Retain the extension directory for scoped script and stylesheet URLs. */
   constructor(private readonly extensionUri: vscode.Uri, private readonly cacheUri: vscode.Uri, private readonly settings: vscode.Memento) {}
+
+  /** List only drafts in this window's private storage, newest first. */
+  private async savedCanvases(): Promise<(vscode.QuickPickItem & { uri: vscode.Uri })[]> {
+    await vscode.workspace.fs.createDirectory(this.cacheUri);
+    const entries = await vscode.workspace.fs.readDirectory(this.cacheUri);
+    const drafts = await Promise.all(entries.filter(([name, type]) => type === vscode.FileType.File && /^canvas-.*\.redpen\.json$/.test(name)).map(async ([name]) => {
+      const uri = vscode.Uri.joinPath(this.cacheUri, name);
+      const stat = await vscode.workspace.fs.stat(uri);
+      let detail = "Unreadable draft — export a backup before deleting.";
+      try {
+        const project = parseProject(JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(uri))));
+        const images = project.backgrounds?.length ?? (project.image ? 1 : 0);
+        detail = `${images} background images · ${project.items.length} objects`;
+      } catch { /* Keep damaged drafts visible so they can still be managed. */ }
+      return { uri, label: name, description: new Date(stat.mtime).toLocaleString(), detail, mtime: stat.mtime };
+    }));
+    return drafts.sort((a, b) => b.mtime - a.mtime);
+  }
+
+  async openRecent(): Promise<void> {
+    const drafts = await this.savedCanvases();
+    if (!drafts.length) { void vscode.window.showInformationMessage("redpen: No saved canvases in this workspace/window."); return; }
+    const selected = await vscode.window.showQuickPick(drafts, { title: "redpen: Open Recent Canvas", placeHolder: "Choose a saved canvas to continue editing", matchOnDetail: true });
+    if (selected) await vscode.commands.executeCommand("vscode.openWith", selected.uri, viewType);
+  }
+
+  async deleteCanvases(): Promise<void> {
+    const drafts = await this.savedCanvases();
+    if (!drafts.length) { void vscode.window.showInformationMessage("redpen: No saved canvases in this workspace/window."); return; }
+    const selected = await vscode.window.showQuickPick(drafts, { title: "redpen: Delete Saved Canvases", placeHolder: "Select canvases to permanently delete", canPickMany: true, matchOnDetail: true });
+    if (!selected?.length) return;
+    const open = () => vscode.window.tabGroups.all.some(group => group.tabs.some(tab => {
+      const input = tab.input;
+      return (input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText) && vscode.Uri.joinPath(input.uri, "..").toString() === this.cacheUri.toString();
+    }));
+    if (open()) { void vscode.window.showWarningMessage("redpen: Close all redpen canvas tabs before deleting saved canvases, so pending edits and images stay safe."); return; }
+    const answer = await vscode.window.showWarningMessage(`Permanently delete ${selected.length} saved canvas(es)?`, { modal: true, detail: "Their edits and unused images will be deleted. Export SVG backups first. Exported SVG files are not affected." }, "Delete permanently");
+    if (answer !== "Delete permanently") return;
+    if (open()) throw new Error("Close all redpen canvas tabs before deleting saved canvases.");
+    for (const draft of selected) await vscode.workspace.fs.delete(draft.uri);
+    // Unreadable remaining drafts may still own assets: retain all images in that case.
+    const retained = new Set<string>();
+    let canClean = true;
+    for (const draft of await this.savedCanvases()) {
+      try {
+        const project = parseProject(JSON.parse(new TextDecoder().decode(await vscode.workspace.fs.readFile(draft.uri))));
+        for (const asset of projectAssets(project)) retained.add(asset);
+      } catch { canClean = false; }
+    }
+    let freed = 0;
+    if (canClean && !open()) {
+      for (const [name, type] of await vscode.workspace.fs.readDirectory(this.cacheUri)) {
+        if (type !== vscode.FileType.File || !/^screenshot-[0-9a-f-]+\.(png|jpe?g|webp)$/.test(name) || retained.has(name)) continue;
+        const uri = vscode.Uri.joinPath(this.cacheUri, name);
+        const stat = await vscode.workspace.fs.stat(uri);
+        await vscode.workspace.fs.delete(uri);
+        freed += stat.size;
+      }
+    }
+    void vscode.window.showInformationMessage(`redpen: Deleted ${selected.length} canvas(es); freed ${(freed / 1024 / 1024).toFixed(1)} MB of images.${canClean ? "" : " Images retained because a remaining draft could not be read."}`);
+  }
 
   /** Read a selected file without asking the user to name or save a draft first. */
   private async readScreenshot(source: vscode.Uri): Promise<Screenshot> {

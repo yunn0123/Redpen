@@ -88,7 +88,7 @@ export function exportSvg(input: Project, source: string, width: number, height:
       || ![asset.width, asset.height].every(Number.isSafeInteger) || asset.width < 1 || asset.height < 1 || asset.width * asset.height > MAX_PIXELS) throw new Error("The image object data is invalid.");
   }
   const backgrounds = projectBackgrounds(project, width, height);
-  let left = Math.min(0, ...backgrounds.map(background => background.x)), top = Math.min(0, ...backgrounds.map(background => background.y));
+  let left = Math.min(...backgrounds.map(background => background.x)), top = Math.min(...backgrounds.map(background => background.y));
   let right = Math.max(...backgrounds.map(background => background.x + background.width)), bottom = Math.max(...backgrounds.map(background => background.y + background.height));
   const originals = backgrounds.map(background => background.asset === project.image
     ? `<g data-background="${xml(background.id)}" transform="translate(${background.x} ${background.y}) scale(${background.width / width} ${background.height / height})"><use href="#source-image"/></g>`
@@ -136,10 +136,14 @@ export function exportSvg(input: Project, source: string, width: number, height:
   }
   const outputRight = project.items.length ? panelX + panelWidth : right;
   const outputBottom = Math.max(bottom, project.items.length ? cursor : bottom);
-  if ((outputRight - left) * (outputBottom - top) > MAX_PIXELS) throw new Error("The export exceeds 16 million pixels. Move objects closer together or split the draft. Annotations will not be truncated.");
+  // Limit default rasterization size, while the vector viewBox and editable data retain every coordinate.
+  const outputWidth = outputRight - left, outputHeight = outputBottom - top;
+  const displayScale = Math.min(1, Math.sqrt(MAX_PIXELS / outputWidth / outputHeight));
+  const displayWidth = Math.max(1, Math.floor(outputWidth * displayScale));
+  const displayHeight = Math.max(1, Math.floor(outputHeight * displayScale));
   const modified = project.items.filter(item => !["note", "comment"].includes(item.kind)).map(item => `<g id="item-${item.id}">${shape(item, assets)}</g>`).join("\n");
   const markers = project.items.map((item, i) => item.kind === "comment" ? "" : `${item.kind === "note" ? `<g id="item-${item.id}">${shape(item, assets)}</g>` : ""}<g><rect x="${item.x}" y="${item.y}" width="28" height="24" rx="3" fill="${item.color}"/><text x="${item.x + 14}" y="${item.y + 17}" font-size="14" fill="white" text-anchor="middle">${i + 1}</text></g>`).join("\n");
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${outputRight - left}" height="${outputBottom - top}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${displayWidth}" height="${displayHeight}" viewBox="${left} ${top} ${outputRight - left} ${outputBottom - top}" font-family="sans-serif">
 <title>redpen</title><desc>original contains all fixed background screenshots; modified contains editable changes over the original; annotations contains numbered markers, object types, and full requests. Coordinates use a shared canvas origin; annotations may span multiple backgrounds.</desc>
 ${project.items.some(item => item.kind === "stamp" && iconLibrary.some(icon => item.text === `icon:${icon.id}`)) ? `<metadata id="redpen-icon-license">${xml(iconLicense)}</metadata>` : ""}
 <metadata id="redpen-draft">${xml(JSON.stringify({ project, width, height }))}</metadata>
