@@ -340,7 +340,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
           }
           case "undo": await vscode.commands.executeCommand("undo"); break;
           case "redo": await vscode.commands.executeCommand("redo"); break;
-          case "save": await document.save(); break;
+          case "save": if (!await document.save()) throw new Error("Could not save the draft. Keep this tab open and try again."); await webview.postMessage({ type: "saved" }); break;
           case "export": {
             const project = read();
             if (!project.image) throw new Error("Paste a screenshot first.");

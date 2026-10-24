@@ -32,16 +32,16 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole("button", { name: "Fit to view", exact: true }).click();
 });
 
-/** Repeated creation must retain each tool and save the previous object's edited requirements. */
-test("drawing tools stay active until the user explicitly selects another tool", async ({ page }) => {
+/** Each completed creation selects its object; explicitly choosing a tool starts another. */
+test("newly created objects are selected and preserve edited requests", async ({ page }) => {
   for (const kind of ["note", "cover", "crop", "arrow", "outline", "text", "stamp"]) {
     const button = page.locator(`[data-tool="${kind}"]`);
-    await button.click();
     for (let index = 0; index < 2; index++) {
+      await button.click();
       const start = await position(page, 280 + index * 240, 300);
       if (kind === "text" || kind === "stamp") await page.mouse.click(start.x, start.y);
       else await drag(page, start, await position(page, 410 + index * 240, 380));
-      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
       await page.locator("#comment").fill(`${kind} ${index}`);
     }
   }
@@ -235,7 +235,7 @@ test("searchable UI and icon libraries create editable annotations and focus exi
   const toolbar = page.getByRole("toolbar");
   await expect(toolbar.getByRole("button", { name: "Import", exact: true })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: "Export for Agent", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("searchbox").fill("tooltip");
   await expect(page.locator(".library-card")).toHaveCount(1);
   await page.locator(".library-card").click();
@@ -258,7 +258,7 @@ test("searchable UI and icon libraries create editable annotations and focus exi
   await expect(page.locator("#count")).toHaveText("2");
   await page.locator(".item-card").last().click();
   await expect(page.locator("#stamp")).toHaveValue("icon:shopping-cart");
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.screenshot({ path: "test-results/component-library.png" });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
@@ -282,7 +282,7 @@ test("outside text exports on transparent expanded bounds and font shortcuts per
   const output = await page.evaluate(() => window.redpenTest.exports[0]);
   expect(output.width).toBeGreaterThan(1300); expect(output.height).toBeGreaterThan(850);
   expect(output.markdown).toContain("Font size: 24 px");
-  expect(output.markdown).toContain("The original screenshot starts in modified.png at x=");
+  expect(output.markdown).toContain("The shared canvas origin starts in modified.png at x=");
   const pixels = await page.evaluate(async svg => {
     const document = new DOMParser().parseFromString(svg, "image/svg+xml");
     document.getElementById("annotations")!.setAttribute("display", "none");
@@ -313,7 +313,7 @@ test("settings, outline and icon sketch export as three layers with readable com
   expect(await page.locator("#settings-open").evaluate(button => getComputedStyle(button, "::after").display)).toBe("block");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.locator("#handoff-prompt").fill("請閱讀 {svgPath} 的三層資訊");
-  await page.getByRole("button", { name: "Save settings", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("redpen: Settings saved.");
   await page.getByRole("button", { name: "Close settings", exact: true }).click();
   await page.reload();
@@ -578,7 +578,7 @@ test("new objects focus editing and Enter finishes without interrupting Chinese 
     await expect(field).toBeFocused();
     await field.press("Enter");
     await expect(page.locator("#canvas")).toBeFocused();
-    await expect(page.locator(`[data-tool="${kind}"]`)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
     const item = await page.evaluate(() => window.redpenTest.project.items.at(-1)!);
     expect(kind === "text" ? item.text : item.comment).toContain("note arrow text 中文");
   }
@@ -640,6 +640,8 @@ test("requests accept pasted and uploaded reference images, export them, and ret
   await field.focus(); await field.press("End");
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#popover-add-reference").click();
+  await expect(page.locator("#reference-dropzone")).toBeFocused();
+  await page.locator("#reference-file-open").click();
   await (await chooser).setFiles({ name: "reference2.png", mimeType: "image/png", buffer: Buffer.from(data.split(",")[1], "base64") });
   await expect.poll(() => field.inputValue()).toContain("[img2]");
   await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].references?.length)).toBe(2);
@@ -668,6 +670,7 @@ test("reference upload failures leave requests editable and image numbers are sc
   await drag(page, await position(page, 270, 170), await position(page, 450, 245));
   const field = page.locator("#comment"); await field.fill("保留這段文字");
   const chooser = page.waitForEvent("filechooser"); await page.locator("#add-reference").click();
+  await page.locator("#reference-file-open").click();
   await (await chooser).setFiles({ name: "broken.png", mimeType: "image/png", buffer: Buffer.from("broken image") });
   await expect(page.locator("#toast")).toContainText("Paste failed");
   await expect(field).toBeFocused(); await expect(field).toHaveValue("保留這段文字");
@@ -675,6 +678,7 @@ test("reference upload failures leave requests editable and image numbers are sc
   const png = await page.evaluate(() => document.createElement("canvas").toDataURL("image/png").split(",")[1]);
   await field.fill("x".repeat(8000));
   const tooLong = page.waitForEvent("filechooser"); await page.locator("#add-reference").click();
+  await page.locator("#reference-file-open").click();
   await (await tooLong).setFiles({ name: "valid.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") });
   await expect(page.locator("#toast")).toContainText("Object text is too long");
   await expect(field).toBeFocused(); await expect(field).toHaveValue("x".repeat(8000));
@@ -702,7 +706,7 @@ test("reference upload failures leave requests editable and image numbers are sc
 
 
 test("motion previews attach readable recipes to regions, persist, and can be removed", async ({ page }) => {
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("tab", { name: "Motion", exact: true }).click();
   await page.getByRole("button", { name: "Preview Slide up", exact: true }).click();
   await expect(page.getByRole("button", { name: "Use Slide up", exact: true })).toBeVisible();
@@ -752,7 +756,7 @@ test("toolbar drag shows insertion position and remembers order without changing
 
 
 test("motion catalog separates component patterns from basics and carousels respond to navigation and drag", async ({ page }) => {
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("tab", { name: "Motion", exact: true }).click();
   await expect(page.locator(".motion-card")).toHaveCount(18);
   await page.getByLabel("Motion category", { exact: true }).selectOption("Interactive");
@@ -779,7 +783,7 @@ test("motion catalog separates component patterns from basics and carousels resp
 });
 
 test("scroll motion previews scrub in both directions and export progress-linked specifications", async ({ page }) => {
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("tab", { name: "Motion", exact: true }).click();
   await page.getByLabel("Motion category", { exact: true }).selectOption("Scroll");
   await expect(page.locator(".motion-card")).toHaveCount(5);
@@ -805,7 +809,7 @@ test("scroll motion previews scrub in both directions and export progress-linked
 });
 
 test("stateful component previews switch tabs, cycle cards, expand, and stop loops on close", async ({ page }) => {
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("tab", { name: "Motion", exact: true }).click();
   const tabs = page.locator('[data-motion="sliding-tabs"]');
   await tabs.getByRole("tab", { name: "Details", exact: true }).click();
@@ -822,12 +826,12 @@ test("stateful component previews switch tabs, cycle cards, expand, and stop loo
   await page.getByRole("button", { name: "Play marquee", exact: true }).click();
   await expect(page.getByRole("button", { name: "Pause marquee", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Close library", exact: true }).click();
-  expect(await page.locator("#library-results").evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
+  await expect.poll(() => page.locator("#library-results").evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
 });
 
 test("reduced motion keeps advanced previews static and narrow layouts keep controls reachable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" }); await page.setViewportSize({ width: 360, height: 700 });
-  await page.getByRole("button", { name: "Components", exact: true }).click();
+  await page.locator("#components").click();
   await page.getByRole("tab", { name: "Motion", exact: true }).click();
   await page.getByLabel("Motion category", { exact: true }).selectOption("Scroll");
   for (const slider of await page.getByRole("slider").all()) await expect(slider).toBeDisabled();
@@ -957,4 +961,165 @@ test("comment popovers drag without losing text focus and reset when reopened", 
   await drag(page, { x: currentHeading.x + 20, y: currentHeading.y + 8 }, { x: -100, y: -100 });
   const bounded = (await popup.boundingBox())!;
   expect(bounded.x).toBe(8); expect(bounded.y).toBe(8);
+});
+
+/** Exercise browser image transfers without depending on OS clipboard permissions. */
+async function transferImage(page: Page, selector: string, type: "paste" | "drop", width = 120, height = 80): Promise<void> {
+  await page.locator(selector).evaluate((element, { type, width, height }) => {
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext("2d")!; ctx.fillStyle = "#3355ff"; ctx.fillRect(0, 0, width, height);
+    const bytes = Uint8Array.from(atob(canvas.toDataURL("image/png").split(",")[1]), char => char.charCodeAt(0));
+    const transfer = new DataTransfer(); transfer.items.add(new File([bytes], "dropped.png", { type: "image/png" }));
+    element.dispatchEvent(type === "drop" ? new DragEvent("drop", { dataTransfer: transfer, bubbles: true, cancelable: true }) : new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }));
+  }, { type, width, height });
+}
+
+test("files drop into an empty canvas, append backgrounds, and remain image objects in the image dialog", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#empty")).toBeVisible();
+  await transferImage(page, "#empty", "drop", 240, 160);
+  await expect(page.locator("#empty")).toBeHidden();
+  await expect(page.locator("#filename")).toContainText("240 × 160");
+  await transferImage(page, "#canvas", "drop");
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.backgrounds?.length)).toBe(2);
+  const backgrounds = await page.evaluate(() => window.redpenTest.project.backgrounds!);
+  expect(backgrounds[1].x - backgrounds[0].width).toBe(64);
+  await page.locator("#new-image").click();
+  await transferImage(page, "#image-dialog", "drop");
+  await expect(page.locator("#image-dialog")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0]?.kind)).toBe("image");
+  await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
+});
+
+test("reference image controls open a paste area and keep the owning request and insertion point", async ({ page }) => {
+  await page.locator("#toggle-sidebar").click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  await page.locator("#popover-comment").fill("參考這裡排版");
+  await page.locator("#popover-comment").evaluate((field: HTMLTextAreaElement) => field.setSelectionRange(2, 2));
+  const actions = await page.locator("#comment-popover .request-actions button").evaluateAll(buttons => buttons.map(button => ({ y: button.getBoundingClientRect().y, text: button.textContent })));
+  expect(new Set(actions.map(action => action.y)).size).toBe(1);
+  expect(actions.every(action => action.text === "")).toBe(true);
+  await page.locator("#popover-add-reference").click();
+  await expect(page.locator("#reference-dropzone")).toBeFocused();
+  await transferImage(page, "#reference-dropzone", "paste");
+  await expect(page.locator("#reference-dialog")).toBeHidden();
+  await expect(page.locator("#popover-comment")).toBeFocused();
+  await expect(page.locator("#popover-comment")).toHaveValue("參考[img1]這裡排版");
+  await page.locator("#popover-add-reference").click();
+  await transferImage(page, "#reference-dialog", "drop");
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[0].references?.length)).toBe(2);
+  await expect(page.locator("#count")).toHaveText("1");
+  await page.screenshot({ path: "test-results/request-popup-refined.png" });
+});
+
+test("drawing across comment markers stays uninterrupted and new icons can be moved immediately", async ({ page }) => {
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  await page.locator("#comment").fill("原本註解");
+  const marker = (await page.locator(".comment-marker").boundingBox())!;
+  await page.locator('[data-tool="cover"]').click();
+  const from = { x: marker.x - 80, y: marker.y + marker.height / 2 };
+  await page.mouse.move(from.x, from.y); await page.mouse.down();
+  await page.mouse.move(marker.x + marker.width / 2, from.y, { steps: 8 });
+  await expect(page.locator("#comment-popover")).toBeHidden();
+  await page.mouse.move(marker.x + marker.width + 70, from.y + 50, { steps: 8 }); await page.mouse.up();
+  await expect(page.locator("#count")).toHaveText("2");
+  await page.locator('[data-tool="stamp"]').click();
+  const start = await position(page, 600, 400); await page.mouse.click(start.x, start.y);
+  await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
+  const before = await page.evaluate(() => window.redpenTest.project.items[2].x);
+  await drag(page, { x: start.x + 10, y: start.y + 10 }, { x: start.x + 60, y: start.y + 50 });
+  await expect.poll(() => page.evaluate(() => window.redpenTest.project.items[2].x)).toBeGreaterThan(before);
+});
+
+test("request tools attach components and motions, show saved state, and settings use icon copy feedback", async ({ page }) => {
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  const saving = await page.locator("#comment").evaluate((field: HTMLTextAreaElement) => {
+    field.value = "調整這裡"; field.dispatchEvent(new Event("change", { bubbles: true }));
+    return document.getElementById("save-status")!.getAttribute("data-state");
+  });
+  expect(saving).toBe("saving");
+  await expect(page.locator("#save-status")).toHaveAttribute("aria-label", "Saved");
+  await page.locator("#add-motion").click();
+  await page.locator("#library-search").fill("tooltip"); await page.locator(".library-card").click();
+  await expect(page.locator("#component-summary")).toHaveText("Tooltip");
+  await expect(page.locator("#count")).toHaveText("1");
+  await page.locator("#add-motion").click(); await page.locator("#tab-motion").click();
+  await page.getByRole("button", { name: "Use Slide up", exact: true }).click();
+  await expect(page.locator("#motion-summary")).toContainText("Slide up");
+  const header = (await page.locator(".request-heading").boundingBox())!;
+  const color = (await page.locator("#color").boundingBox())!;
+  expect(color.x).toBeGreaterThan(header.x + header.width / 2);
+  expect(color.y).toBeGreaterThanOrEqual(header.y);
+  await expect(page.locator("#item-list .item-number svg")).toHaveCount(1);
+  await page.screenshot({ path: "test-results/request-sidebar-refined.png" });
+  await page.locator("#remove-component").click(); await expect(page.locator("#component-field")).toBeHidden();
+  await page.locator("#remove-motion").click(); await expect(page.locator("#motion-field")).toBeHidden();
+  await page.locator("#export").click(); await expect.poll(() => page.evaluate(() => window.redpenTest.exports.length)).toBe(1);
+  await page.locator("#settings-open").click();
+  await expect(page.locator("#settings-save")).toHaveText("Save");
+  await expect(page.locator("#settings hr")).toHaveCount(2);
+  await expect(page.locator(".settings-heading-actions #copy-prompt")).toBeVisible();
+  await page.locator("#copy-prompt").click(); await expect(page.locator("#copy-prompt")).toHaveAttribute("aria-label", "Copied");
+  expect(await page.evaluate(() => window.redpenTest.copiedPrompt)).toContain("/demo/redpen.svg");
+  await page.screenshot({ path: "test-results/settings-refined.png" });
+  await page.locator("#settings-close").click();
+  const toast = (await page.locator("#toast").boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(toast.x + toast.width / 2 - viewport.width / 2)).toBeLessThan(1);
+  expect(viewport.height - toast.y - toast.height).toBeCloseTo(24, 0);
+});
+
+test("popup library actions edit the hovered request without replacing its text with another selection", async ({ page }) => {
+  await page.locator("#toggle-sidebar").click();
+  await drag(page, await position(page, 270, 170), await position(page, 450, 245));
+  await page.locator("#popover-comment").fill("第一個需求"); await page.locator("#popover-comment").press("Enter");
+  await page.locator('[data-tool="note"]').click();
+  await drag(page, await position(page, 600, 450), await position(page, 750, 550));
+  await page.locator("#popover-comment").fill("第二個需求"); await page.locator("#popover-comment").press("Enter");
+  await page.getByRole("button", { name: "Comment 1: Region note", exact: true }).click();
+  await page.locator("#popover-add-library").click();
+  await page.locator("#library-search").fill("tooltip"); await page.locator(".library-card").click();
+  const items = await page.evaluate(() => window.redpenTest.project.items);
+  expect(items.map(item => item.comment)).toEqual(["第一個需求", "第二個需求"]);
+  expect(items[0].component).toBe("Tooltip"); expect(items[1].component).toBeUndefined();
+});
+
+test("refined request controls stay reachable in a narrow light themed editor", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 700 });
+  await page.evaluate(() => {
+    const style = document.documentElement.style;
+    for (const [name, value] of Object.entries({ "--vscode-editor-background": "#faf8f5", "--vscode-sideBar-background": "#f1ece6", "--vscode-foreground": "#29252b", "--vscode-descriptionForeground": "#625c65", "--vscode-panel-border": "#ccc3bb", "--vscode-input-background": "#fffdfa", "--vscode-textLink-foreground": "#8b3048" })) style.setProperty(name, value);
+  });
+  await page.locator("#add-comment").click(); await page.locator("#comment").fill("窄視窗的需求與顏色操作"); await page.locator("#comment").press("Enter");
+  for (const id of ["add-motion", "add-reference", "save-status"]) {
+    const box = (await page.locator(`#${id}`).boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(360);
+  }
+  await page.locator("#add-reference").click();
+  await expect(page.locator("#reference-dropzone")).toBeFocused();
+  await page.screenshot({ path: "test-results/reference-dialog-light-narrow.png" });
+  await page.keyboard.press("Escape"); await expect(page.locator("#comment")).toBeFocused();
+});
+
+test("notes are immediately movable and resizable, then drawing on empty canvas repeats annotation", async ({ page }) => {
+  await drag(page, await position(page, 280, 180), await position(page, 440, 260));
+  await page.locator("#comment").fill("先移動並調整大小");
+  await page.locator("#comment").press("Enter");
+  await expect(page.locator('[data-tool="select"]')).toHaveAttribute("aria-pressed", "true");
+  const before = await page.evaluate(() => window.redpenTest.project.items[0]);
+  await drag(page, await position(page, before.x + 50, before.y + 40), await position(page, before.x + 110, before.y + 90));
+  const moved = await page.evaluate(() => window.redpenTest.project.items[0]);
+  expect(moved.x).toBeGreaterThan(before.x + 40);
+  await drag(page, await position(page, moved.x + moved.width, moved.y + moved.height), await position(page, moved.x + moved.width + 60, moved.y + moved.height + 40));
+  const resized = await page.evaluate(() => window.redpenTest.project.items[0]);
+  expect(resized.width).toBeGreaterThan(moved.width + 40); expect(resized.height).toBeGreaterThan(moved.height + 20);
+  await drag(page, await position(page, 650, 400), await position(page, 800, 500));
+  await expect(page.locator("#count")).toHaveText("2");
+  await expect(page.locator("#comment")).toBeFocused();
+  await page.locator("#comment").fill("接著建立第二則"); await page.locator("#comment").press("Enter");
+  await page.locator('[data-tool="select"]').click();
+  await drag(page, await position(page, 100, 600), await position(page, 200, 650));
+  await expect(page.locator("#count")).toHaveText("2");
+  const items = await page.evaluate(() => window.redpenTest.project.items);
+  expect(items.map(item => item.comment)).toEqual(["先移動並調整大小", "接著建立第二則"]);
 });

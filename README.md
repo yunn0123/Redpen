@@ -22,6 +22,13 @@ Lightweight and local. No account or AI API key required. Just paste and start e
 
 ## Updates
 
+### 0.2.13
+
+- New objects are selected immediately for moving and resizing. Draw on empty canvas to continue with the same creation tool; choose Select explicitly for ordinary selection. Enter finishes input without interrupting Chinese IME composition.
+- Request actions use compact icons with tooltips. Attach, change, or remove component types and motion recipes on existing requests; reference images can be pasted into request fields or pasted/dropped into the attachment dialog.
+- Drop image files onto the canvas to add fixed backgrounds, or into New image to add movable image objects. Drawing across comment markers no longer interrupts a gesture.
+- Saving status appears beside the Requests heading, notifications are centered at the bottom, and canvas instructions sit behind images. Settings adds section dividers and a copy icon with checkmark feedback.
+
 ### 0.2.12
 
 - Reopen locally saved drafts with **redpen: Open Recent Canvas** in the Command Palette. Select drafts to permanently delete with **redpen: Delete Saved Canvases**; confirmation is required, shared images are retained, and exported SVG files are unaffected.
@@ -84,9 +91,11 @@ Import it back into redpen to keep editing. The export expands to fit your objec
 
 ## Quick tips
 
-- **Motion recipes:** open **Components → Motion**, play a preview, then add the effect to the selected object or draw a new region. 18 offline presets cover interactive components (carousels, swipe stacks, marquees, tabs and expanding cards), scroll-linked effects (horizontal parallax, pinned galleries, card stacks, image reveals and hero zoom), and basic effects. Previews support navigation, dragging or a scroll-progress slider. Exports describe triggers, bounds, timing, loop behavior and reduced-motion fallbacks; no GIF or animation library is required for the handoff.
+- **Create, then adjust:** new objects are automatically selected for moving/resizing and focus their request field. Draw on empty canvas to use the same creation tool again; choose Select explicitly for ordinary selection. Enter finishes input; Shift+Enter adds a line, and Chinese IME confirmation stays in the field. Drop image files onto the canvas to add backgrounds.
+
+- **Motion recipes:** open **Components & motions → Motion**, play a preview, then add the effect to the selected object or draw a new region. 18 offline presets cover interactive components (carousels, swipe stacks, marquees, tabs and expanding cards), scroll-linked effects (horizontal parallax, pinned galleries, card stacks, image reveals and hero zoom), and basic effects. Previews support navigation, dragging or a scroll-progress slider. Exports describe triggers, bounds, timing, loop behavior and reduced-motion fallbacks; no GIF or animation library is required for the handoff.
 - **Your tool order:** drag buttons within either toolbar group; an insertion line follows the drop position. You can also focus a button and use **Alt+Arrow** keys. The order is remembered; reset it in Settings.
-- **Reference images:** paste an image into a request field or click **Add reference image** below it. The text gets an `[img1]` marker, with a thumbnail you can preview or remove. Up to 8 images per request; references are embedded beside their request in the exported SVG and retained when reimported.
+- **Reference images:** paste an image into a request field or use the **Add reference image** icon below it to open a paste/drop area (file selection is also available). The text gets an `[img1]` marker, with a thumbnail you can preview or remove. Up to 8 images per request; references are embedded beside their request in the exported SVG and retained when reimported.
 - **Floating controls:** drawing tools sit at the top left; undo, import, export, and the Requests toggle sit at the top right. Requests starts collapsed and opens as a floating panel attached to the right toolbar.
 - **Compact tools:** toggle **Collapse drawing tools** to keep only the active tool visible; hover or focus the toolbar to expand it. This preference is remembered. Zoom controls sit vertically at the bottom left.
 - **Sketch an icon:** the gray placeholder disappears after the first stroke, including in exported SVGs. Clear strokes to restore it.
@@ -103,7 +112,7 @@ Import it back into redpen to keep editing. The export expands to fit your objec
 
 - Exporting into a local Git repository offers to add that SVG to `.gitignore`. The file changes only if you choose **Add to .gitignore**; already ignored or tracked SVGs are skipped.
 - Notifications start with **redpen:**. Export success offers **Copy handoff prompt**; errors explain what to fix. Canceling the save dialog does not export a file.
-- Missed the export notification? Open the canvas **Settings → Copy handoff prompt**. You can also edit the prompt there; `{svgPath}` inserts the exported file path.
+- Missed the export notification? Use the **Copy handoff prompt** icon in the canvas Settings heading. You can also edit the prompt there; `{svgPath}` inserts the exported file path.
 - New canvases autosave locally. The internal `.redpen.json` file is a draft; share the exported SVG with your agent.
 - Use **Import** to reopen a redpen SVG and continue editing. If an older draft opens as JSON, use **Reopen Editor With… → redpen Canvas**.
 

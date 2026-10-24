@@ -92,7 +92,7 @@ window.acquireVsCodeApi = () => ({
         localStorage.setItem("redpen-demo", JSON.stringify(project)); state(message.revision); break;
       case "undo": if (cursor > 0) { project = structuredClone(history[--cursor]); localStorage.setItem("redpen-demo", JSON.stringify(project)); state(); } break;
       case "redo": if (cursor < history.length - 1) { project = structuredClone(history[++cursor]); localStorage.setItem("redpen-demo", JSON.stringify(project)); state(); } break;
-      case "save": localStorage.setItem("redpen-demo", JSON.stringify(project)); break;
+      case "save": localStorage.setItem("redpen-demo", JSON.stringify(project)); window.postMessage({ type: "saved" }, location.origin); break;
       case "import": project = { version: 1, image: "sample.png", items: [] }; history = [structuredClone(project)]; cursor = 0; state(); break;
       case "export": {
         try {

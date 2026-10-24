@@ -16,6 +16,10 @@ function icon(name: string): string {
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${toolbarIcons[name] ?? ""}"/></svg>`;
 }
 
+function action(id: string, label: string, glyph: string): string {
+  return `<button id="${id}" class="icon-action" aria-label="${label}" title="${label}" data-tooltip="${label}">${icon(glyph)}</button>`;
+}
+
 const tools: [Tool, string, string][] = [
   ["select", "Select", "V"], ["pan", "Pan", "H"], ["note", "Annotate", "N"], ["cover", "Cover", "M"],
   ["crop", "Copy region", "C"], ["arrow", "Arrow", "A"], ["text", "Text", "T"], ["stamp", "Icon", "I"], ["outline", "Outline", "R"],
@@ -23,37 +27,37 @@ const tools: [Tool, string, string][] = [
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <div class="floating-toolbars"><div id="drawing-tools" class="toolbar toolbar-left" role="toolbar" aria-label="Canvas tools">${tools.map(([id, label, key]) => `<button data-tool="${id}" title="${label} (${key})" aria-label="${label}" aria-pressed="false">${icon(id)}<span>${label}</span></button>`).join("")}
-    <button id="components" aria-label="Components">${icon("components")}<span>Components</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><button id="collapse-tools" aria-label="Collapse drawing tools" aria-pressed="false" title="Collapse drawing tools">${icon("collapse")}</button></div><div id="right-panel"><div class="toolbar toolbar-right" role="toolbar" aria-label="Canvas actions"><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export</span></button><button id="toggle-sidebar" aria-label="Show requests" aria-expanded="false">${icon("sidebar")}</button></div></div></div>
-  <main><section class="workspace" aria-label="Screenshot canvas"><div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
-    <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Click the canvas and press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
+    <button id="components" aria-label="Components & motions">${icon("components")}<span>Components & motions</span></button><button id="new-image" aria-label="New image">${icon("image")}<span>New image</span></button><button id="settings-open" aria-label="Settings">${icon("settings")}<span>Settings</span></button><button id="collapse-tools" aria-label="Collapse drawing tools" aria-pressed="false" title="Collapse drawing tools">${icon("collapse")}</button></div><div id="right-panel"><div class="toolbar toolbar-right" role="toolbar" aria-label="Canvas actions"><button id="undo" title="Undo (⌘/Ctrl Z)" aria-label="Undo">${icon("undo")}</button><button id="redo" title="Redo (⌘/Ctrl Shift Z)" aria-label="Redo">${icon("redo")}</button><button id="import" aria-label="Import">${icon("upload")}<span>Import</span></button><button id="export" class="primary" aria-label="Export for Agent">${icon("export")}<span>Export</span></button><button id="toggle-sidebar" aria-label="Show requests" aria-expanded="false">${icon("sidebar")}</button></div></div></div>
+  <main><section class="workspace" aria-label="Screenshot canvas">
     <div class="canvas-hint" id="hint">Draw a region and describe what you want to change</div>
+    <div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
+    <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Drop an image here or press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
     <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">${icon("minus")}</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">${icon("plus")}</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
   <div id="comment-markers" aria-label="Canvas comments"></div>
     <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
       <div class="popover-heading"><strong id="popover-title" role="button" tabindex="0" aria-label="Move comment" title="Drag to move · Arrow keys to move"></strong><button id="popover-close" aria-label="Close comment">${icon("close")}</button></div>
       <label for="popover-comment">Request<textarea id="popover-comment" maxlength="8000" rows="2" placeholder="Describe what should change…"></textarea></label>
-      <div id="popover-references" class="reference-list"></div><button id="popover-add-reference" class="add-reference">Add reference image</button>
-      <div class="popover-footer"><small>Enter to finish<br>Shift+Enter for a new line</small><button id="popover-details">More options</button></div>
+      <div id="popover-references" class="reference-list"></div>
+      <div class="request-actions">${action("popover-add-library", "Components & motions", "components")}${action("popover-add-reference", "Add reference image", "image")}${action("popover-details", "More options", "sidebar")}</div>
     </section>
-  </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><section id="background-actions" hidden><p id="background-hint">Background selected. Its position is locked; annotations remain when replaced or deleted.</p><button id="replace-background">Replace background</button><button id="delete-background">Delete background</button></section>
-    <p class="aside-description">Select a region and describe its appearance or behavior.</p>
+  </section><aside id="sidebar" aria-label="Requests" hidden><div class="aside-heading"><h2>Requests</h2><div class="request-heading-actions"><span id="save-status" role="img" aria-label="Saved" title="Saved">${icon("saved")}</span><span id="save-hint" class="sr-only" aria-live="polite">Saved</span><button id="add-comment" aria-label="Add general request" title="Add a request without a specific location">${icon("plus")}</button><span id="count">0</span></div></div><p id="selection-summary" hidden></p><button id="delete-many" hidden>Delete selected objects</button><section id="background-actions" hidden><p id="background-hint">Background selected. Its position is locked; annotations remain when replaced or deleted.</p><button id="replace-background">Replace background</button><button id="delete-background">Delete background</button></section>
     <section id="inspector" hidden><div class="inspector-heading"><strong id="selection-title"></strong><button id="delete" class="danger" title="Delete object" aria-label="Delete object">${icon("trash")}</button></div>
       <div id="image-actions" hidden><button id="rotate-image">Rotate 90°</button><button id="flip-image-x">Flip horizontal</button><button id="flip-image-y">Flip vertical</button></div>
       <label id="text-label" hidden>Display text<input id="display-text" maxlength="2000"></label>
       <label id="font-label" hidden>Font size · ⌘/Ctrl + / −<input id="font-size" type="number" min="8" max="200" step="2" value="22"></label>
       <label id="stamp-label" hidden>Icon<select id="stamp"><option value="placeholder">Gray circle · Icon placeholder</option><option value="+">＋ Add</option><option value="✓">✓ Done</option><option value="×">× Close</option><option value="!">! Alert</option><option value="?">? Help</option><option value="★">★ Star</option>${iconLibrary.map(entry => `<option value="icon:${entry.id}">${entry.name}</option>`).join("")}</select></label>
       <section id="sketch-panel" hidden><label>Sketch an icon<canvas id="sketch" width="200" height="160" aria-label="Icon sketch area"></canvas></label><button id="sketch-clear">Clear strokes</button><small>You can also describe the icon in the request below.</small></section>
-      <label id="color-label">Color<input id="color" type="color" value="#f35e5e"></label>
-      <label for="comment">Request<textarea id="comment" aria-describedby="save-hint" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea></label>
-      <div class="motion-field"><span id="motion-summary" class="field-hint"></span><button id="add-motion">Add motion</button><button id="remove-motion" hidden>Remove motion</button></div>
-      <div id="references" class="reference-list"></div><button id="add-reference" class="add-reference">Add reference image</button>
-      <span class="field-hint" id="save-hint">Enter to finish · Shift+Enter for a new line · Autosaved</span>
+      <div class="request-heading"><label for="comment">Request</label><label id="color-label" title="Object color"><span class="sr-only">Color</span><input id="color" type="color" value="#f35e5e" aria-label="Object color"></label></div><textarea id="comment" aria-describedby="save-hint" maxlength="8000" rows="5" placeholder="For example: Show a + button on hover. Clicking it adds an editable item."></textarea>
+      <div id="component-field" class="attachment-field" hidden><span id="component-summary" class="field-hint"></span>${action("change-component", "Change component", "edit")}${action("remove-component", "Remove component", "close")}</div>
+      <div id="motion-field" class="attachment-field" hidden><span id="motion-summary" class="field-hint"></span>${action("change-motion", "Change motion", "edit")}${action("remove-motion", "Remove motion", "close")}</div>
+      <div id="references" class="reference-list"></div><div class="request-actions">${action("add-motion", "Components & motions", "components")}${action("add-reference", "Add reference image", "image")}</div>
     </section><div id="item-list"></div><div id="notes-empty"><span>01</span><p>Give every change a place</p><small>Use Annotate, or select an object on the canvas.</small></div>
-    <div class="aside-footer"><span id="filename">Original preserved · Export when ready</span></div></aside></main>
-  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">${icon("close")}</button></div><p>Choose an image or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
+    <span id="filename" class="sr-only">Original preserved · Export when ready</span></aside></main>
+  <dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="library-heading"><h2 id="image-dialog-title">Add an image</h2><button id="image-dialog-close" aria-label="Close image dialog">${icon("close")}</button></div><p>Drop an image here or paste with ⌘ V / Ctrl V. You can move, rotate, and flip it on the canvas.</p><button id="image-file-open" class="primary">Choose an image file</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></dialog>
   <dialog id="library" aria-labelledby="library-title"><div class="library-heading"><h2 id="library-title"></h2><button id="library-close" aria-label="Close library">${icon("close")}</button></div><div class="library-tabs" role="tablist" aria-label="Library category"><button id="tab-components" role="tab" aria-selected="true" aria-controls="library-results">Components</button><button id="tab-motion" role="tab" aria-selected="false" aria-controls="library-results" tabindex="-1">Motion</button></div><p id="library-help" class="field-hint"></p><label id="motion-category-label" hidden>Motion category<select id="motion-category" aria-label="Motion category"><option value="All">All patterns</option><option value="Interactive">Interactive components</option><option value="Scroll">Scroll-linked effects</option><option value="Basic">Basic effects</option></select></label><input id="library-search" type="search" aria-label="Search components" placeholder="Search by name or purpose"><div id="library-results" role="tabpanel" aria-labelledby="tab-components"></div></dialog>
-  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><button id="settings-close" aria-label="Close settings">${icon("close")}</button></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save settings</button><button id="copy-prompt" disabled>Copy handoff prompt</button></div><p>Drag toolbar buttons to reorder within their group, or focus a button and press Alt+Arrow keys. Your order is remembered.</p><button id="reset-toolbar">Reset toolbar order</button><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="library-heading"><h2 id="settings-title">Settings</h2><div class="settings-heading-actions">${action("copy-prompt", "Copy handoff prompt", "copy")}<button id="settings-close" aria-label="Close settings">${icon("close")}</button></div></div><label>Copy handoff prompt<textarea id="handoff-prompt" maxlength="4000" rows="7"></textarea></label><p>Use {svgPath} for the exported SVG path. If omitted, the path is appended automatically.</p><div class="settings-actions"><button id="settings-reset">Reset to default</button><button id="settings-save" class="primary">Save</button></div><hr><p>Drag toolbar buttons to reorder within their group, or focus a button and press Alt+Arrow keys. Your order is remembered.</p><button id="reset-toolbar">Reset toolbar order</button><hr><p>Export a single SVG with original, modified, and annotations layers. Use Import to reopen an SVG exported by redpen.</p></dialog>
   <input id="background-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+  <dialog id="reference-dialog" aria-labelledby="reference-dialog-title"><div class="library-heading"><h2 id="reference-dialog-title">Add reference image</h2><button id="reference-dialog-close" aria-label="Close reference image dialog">${icon("close")}</button></div><div id="reference-dropzone" class="image-dropzone" tabindex="0">${icon("image")}<p>Paste with ⌘ V / Ctrl V, or drop an image here.</p></div><button id="reference-file-open">Choose an image file</button></dialog>
   <input id="reference-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
   <dialog id="reference-preview" aria-labelledby="reference-preview-title"><div class="library-heading"><h2 id="reference-preview-title"></h2><button id="reference-preview-close" aria-label="Close reference preview">${icon("close")}</button></div><img id="reference-preview-image" alt=""></dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>`;
@@ -63,6 +67,7 @@ function el<T extends HTMLElement = HTMLElement>(id: string): T { return documen
 
 // Keep Requests attached to its action bar without taking space from the canvas.
 el("right-panel").append(el("sidebar"));
+el<HTMLButtonElement>("copy-prompt").disabled = true;
 
 const canvas = el<HTMLDivElement>("canvas");
 Konva.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
@@ -88,9 +93,12 @@ let assets = new Map<string, HTMLImageElement>();
 let marquee: { start: Point; current: Point; preview: Konva.Rect; additive: boolean } | undefined;
 let moving: { anchor: string; start: Point; positions: Map<string, Point> } | undefined;
 let tool: Tool = "note";
+// Selection handles stay active; only a new gesture on empty canvas resumes creation.
+let repeatTool: Tool | undefined;
 let revision = 0;
 let pendingComponent: string | undefined;
 let pendingMotion: string | undefined;
+let libraryTarget: string | undefined;
 let libraryMode: "components" | "motion" = "components";
 let motionCleanups: (() => void)[] = [];
 function disposeMotionPreviews(): void { motionCleanups.forEach(dispose => dispose()); motionCleanups = []; }
@@ -99,6 +107,8 @@ let stroke: { id: string; pointerId: number; points: number[] } | undefined;
 let gesture: { start: Point; current: Point; preview: Konva.Shape; kind: Kind; background?: Background } | undefined;
 let pan: { start: Point; origin: Point } | undefined;
 let space = false;
+let copyTimer: ReturnType<typeof setTimeout>;
+let scratchDraft = true;
 let toastTimer: ReturnType<typeof setTimeout>;
 let exporting = false;
 let fatal = false;
@@ -114,6 +124,12 @@ function toast(message: string): void {
   el("toast").hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el("toast").hidden = true; }, 6000);
+}
+
+function saveStatus(state: "saving" | "saved" | "unsaved" | "error"): void {
+  const label = state === "saving" ? "Saving…" : state === "saved" ? "Saved" : state === "error" ? "Save failed — keep this tab open" : "Unsaved changes · ⌘/Ctrl S to save";
+  const status = el("save-status"); status.innerHTML = icon(state === "saving" ? "saving" : state === "saved" ? "saved" : "save");
+  status.dataset.state = state; status.title = label; status.setAttribute("aria-label", label); el("save-hint").textContent = label;
 }
 
 /** Read the selected object from the current draft rather than retaining stale references. */
@@ -175,10 +191,10 @@ function changeFontSize(size: number): void {
 }
 
 /** Open one searchable catalog; choosing a result arms the next canvas gesture. */
-function openLibrary(mode: "components" | "motion" = "components"): void {
+function openLibrary(mode: "components" | "motion" = "components", itemId?: string): void {
   flushFields();
-  libraryMode = mode;
-  el("library-title").textContent = "Components & motion";
+  libraryMode = mode; libraryTarget = itemId;
+  el("library-title").textContent = "Components & motions";
   el<HTMLInputElement>("library-search").value = "";
   renderLibrary();
   el<HTMLDialogElement>("library").showModal();
@@ -194,7 +210,7 @@ function renderLibrary(): void {
     const tab = el<HTMLButtonElement>(`tab-${mode}`); tab.setAttribute("aria-selected", String(mode === libraryMode)); tab.tabIndex = mode === libraryMode ? 0 : -1;
   }
   results.setAttribute("aria-labelledby", `tab-${libraryMode}`);
-  el("library-help").textContent = libraryMode === "motion" ? "Preview an effect, then add it to the selected object or draw a new region. Exports include a readable motion recipe." : "Choose a component, then draw a region for your request.";
+  el("library-help").textContent = libraryMode === "motion" ? "Preview an effect, then add it to the selected object or draw a new region. Exports include a readable motion recipe." : libraryTarget ? "Choose a component for this request." : "Choose a component, then draw a region for your request.";
   el("library-search").setAttribute("aria-label", libraryMode === "motion" ? "Search motion" : "Search components");
   el("motion-category-label").hidden = libraryMode !== "motion";
   if (libraryMode === "motion") { renderMotionLibrary(query); return; }
@@ -208,6 +224,8 @@ function renderLibrary(): void {
     button.append(name, description);
     button.addEventListener("click", () => {
       el<HTMLDialogElement>("library").close();
+      const item = project?.items.find(item => item.id === libraryTarget);
+      if (item) { item.component = entry.value; setTool("select"); selectItems([item.id]); commit(); canvas.focus(); return; }
       setTool("note");
       pendingComponent = entry.value; el("hint").textContent = `${entry.name}: Draw a region for this component, then describe its behavior`;
       canvas.focus();
@@ -253,6 +271,7 @@ function renderMotionLibrary(query: string): void {
 /** Commit complete gestures as one native undo step; pointer motion stays out of document history. */
 function commit(): void {
   if (!project || fatal) return;
+  saveStatus("saving");
   host.postMessage({ type: "edit", project: structuredClone(project), revision: ++revision });
   render();
 }
@@ -379,6 +398,7 @@ function deferPopoverClose(): void {
 function openPopover(id: string, focus = false): void {
   if (fatal || gesture || pan || moving || marquee || space) return;
   const field = el<HTMLTextAreaElement>("popover-comment");
+  if (!focus && tool !== "select") return;
   if (!focus && document.activeElement?.matches("input, textarea, select")) return;
   if (!focus && popoverId !== id && el("comment-popover").contains(document.activeElement)) return;
   clearTimeout(popoverTimer);
@@ -423,6 +443,7 @@ function positionComments(): void {
 /** Reuse marker buttons across edits to preserve pointer and keyboard focus. */
 function renderComments(): void {
   const items = project?.items ?? [];
+  el("comment-markers").classList.toggle("drawing-active", tool !== "select" || space);
   for (const [id, button] of commentMarkers) {
     if (!items.some(item => item.id === id && item.kind !== "comment")) { button.remove(); commentMarkers.delete(id); }
   }
@@ -440,6 +461,7 @@ function renderComments(): void {
       button.addEventListener("click", () => openPopover(item.id, true));
       commentMarkers.set(item.id, button); el("comment-markers").append(button);
     }
+    button.tabIndex = tool === "select" && !space ? 0 : -1;
     button.querySelector("span")!.textContent = String(index + 1);
     button.setAttribute("aria-label", `Comment ${index + 1}: ${item.component ?? kindNames[item.kind]}`);
   });
@@ -480,9 +502,10 @@ function renderInspector(): void {
     if (item.kind === "stamp") drawSketch();
     el("color-label").hidden = ["crop", "image", "comment"].includes(item.kind);
   }
+  el("component-field").hidden = !item?.component;
+  el("component-summary").textContent = item?.component ?? "";
+  el("motion-field").hidden = !item?.motion;
   el("motion-summary").textContent = item?.motion ? `Motion: ${motionLibrary.find(entry => entry.id === item.motion)?.name}` : "No motion specified";
-  el("remove-motion").hidden = !item?.motion;
-  el("add-motion").textContent = item?.motion ? "Change motion" : "Add motion";
   renderReferences("references", "add-reference", item);
   const list = el("item-list");
   list.replaceChildren();
@@ -492,7 +515,8 @@ function renderInspector(): void {
     button.setAttribute("aria-pressed", String(selectedIds.has(entry.id)));
     const number = document.createElement("span");
     number.className = "item-number";
-    number.textContent = String(index + 1).padStart(2, "0");
+    const digits = document.createElement("span"); digits.textContent = String(index + 1).padStart(2, "0");
+    number.append(digits); number.insertAdjacentHTML("beforeend", icon(entry.kind === "comment" ? "note" : entry.kind));
     const content = document.createElement("span");
     const title = document.createElement("strong");
     title.textContent = entry.component ? `Component note · ${entry.component}` : kindNames[entry.kind];
@@ -661,7 +685,7 @@ canvas.addEventListener("dblclick", event => {
 function setTool(next: Tool): void {
   flushFields();
   cancelGesture();
-  tool = next;
+  tool = next; repeatTool = undefined;
   pendingComponent = undefined; pendingMotion = undefined;
   document.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.tool === tool)));
   canvas.style.cursor = tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair";
@@ -738,7 +762,7 @@ function backgroundColor(rect: Rect): string {
   } catch { return "#ffffff"; }
 }
 
-/** Retain the active creation tool for repeated drawing and source geometry for agent notes. */
+/** New objects immediately become selected, while their request field accepts typing. */
 function addItem(kind: Kind, rect: Rect, sourceBackground?: Background): void {
   if (!project || fatal) return;
   if (project.items.length >= MAX_ITEMS) { toast(`Each draft supports up to ${MAX_ITEMS} objects.`); return; }
@@ -755,6 +779,8 @@ function addItem(kind: Kind, rect: Rect, sourceBackground?: Background): void {
       height: rect.height * assets.get(sourceBackground.asset)!.naturalHeight / sourceBackground.height,
     } : { ...rect }, ...(sourceBackground ? { asset: sourceBackground.asset } : {}), x: rect.x + 16, y: rect.y + 16 } : {}),
   };
+  setTool("select");
+  repeatTool = tools.some(([id]) => id === kind) ? kind : undefined;
   project.items.push(item); selectItems([item.id]); commit();
   if (kind === "note" && el("sidebar").hidden) openPopover(item.id, true);
   else {
@@ -774,6 +800,9 @@ stage.on("mousedown touchstart", event => {
   const point = pointer();
   if (tool === "pan" || space || mouse.button === 1) {
     event.evt.preventDefault(); pan = { start: stage.getPointerPosition()!, origin: scene.position() }; canvas.style.cursor = "grabbing"; return;
+  }
+  if (tool === "select" && repeatTool && !mouse.metaKey && !mouse.ctrlKey && (event.target === stage || event.target.hasName("background"))) {
+    setTool(repeatTool); selectItems([]); renderInspector();
   }
   if (tool === "select") {
     if (event.target === stage || event.target.hasName("background")) {
@@ -895,11 +924,18 @@ async function insertImage(file: File, mode: "new" | "asset" | "replace" | "refe
   finally { if (url) URL.revokeObjectURL(url); }
 }
 
+function addReferenceFile(file: File, target: ReferenceTarget): void {
+  referencePicker = undefined;
+  el<HTMLDialogElement>("reference-dialog").close();
+  void insertImage(file, "reference", target);
+}
+
 /** Only request fields consume image paste; ordinary text paste remains native. */
 window.addEventListener("paste", event => {
   const target = event.target;
   const file = Array.from(event.clipboardData?.items ?? []).find(item => item.kind === "file" && item.type.startsWith("image/"))?.getAsFile();
   if (!file) return;
+  if (el<HTMLDialogElement>("reference-dialog").open && referencePicker) { event.preventDefault(); addReferenceFile(file, referencePicker); return; }
   if (target instanceof HTMLTextAreaElement && ["comment", "popover-comment"].includes(target.id)) {
     event.preventDefault(); const reference = referenceTarget(target.id);
     if (reference) void insertImage(file, "reference", reference);
@@ -909,6 +945,24 @@ window.addEventListener("paste", event => {
   event.preventDefault();
   void insertImage(file, !screenshot ? "new" : el<HTMLDialogElement>("image-dialog").open ? "asset" : "background");
 });
+
+/** File drops share paste validation and never navigate the webview away from unsaved work. */
+for (const id of ["empty", "canvas", "image-dialog", "reference-dialog"]) {
+  const area = el(id);
+  area.addEventListener("dragover", event => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault(); area.classList.add("file-dragover"); event.dataTransfer.dropEffect = "copy";
+  });
+  area.addEventListener("dragleave", event => { if (!(event.relatedTarget instanceof Node) || !area.contains(event.relatedTarget)) area.classList.remove("file-dragover"); });
+  area.addEventListener("drop", event => {
+    if (!event.dataTransfer?.types.includes("Files")) return;
+    event.preventDefault(); event.stopPropagation(); area.classList.remove("file-dragover");
+    const file = event.dataTransfer.files[0]; if (!file) return;
+    if (id === "reference-dialog" && referencePicker) { addReferenceFile(file, referencePicker); return; }
+    if (el<HTMLDialogElement>("settings").open || el<HTMLDialogElement>("library").open || el<HTMLDialogElement>("reference-preview").open) return;
+    void insertImage(file, !screenshot ? "new" : id === "image-dialog" ? "asset" : "background");
+  });
+}
 
 /** Export all content at original pixel scale, with transparent space and an explicit origin offset. */
 async function exportImage(): Promise<void> {
@@ -931,6 +985,8 @@ window.addEventListener("message", async event => {
     el<HTMLTextAreaElement>("handoff-prompt").value = handoffPrompt;
     if (message.saved) toast("Settings saved.");
   } else if (message?.type === "promptCopied") {
+    clearTimeout(copyTimer); el("copy-prompt").innerHTML = icon("check"); el("copy-prompt").setAttribute("aria-label", "Copied"); el("copy-prompt").title = el("copy-prompt").dataset.tooltip = "Copied";
+    copyTimer = setTimeout(() => { el("copy-prompt").innerHTML = icon("copy"); el("copy-prompt").setAttribute("aria-label", "Copy handoff prompt"); el("copy-prompt").title = el("copy-prompt").dataset.tooltip = "Copy handoff prompt"; }, 2000);
     toast("Handoff prompt and SVG path copied.");
   } else if (message?.type === "selectItem") {
     setTool("select"); selectItems([message.id]); render(); showSidebar(true);
@@ -939,8 +995,9 @@ window.addEventListener("message", async event => {
     const generation = ++loadGeneration;
     try {
       const next = parseProject(message.project);
-      el("save-hint").textContent = message.scratch ? "Enter to finish · Shift+Enter for a new line · Autosaved" : "Enter to finish · Shift+Enter for a new line · ⌘/Ctrl S to save";
+      scratchDraft = Boolean(message.scratch);
       if (!next.image) {
+        saveStatus("saved");
         assets.clear(); project = next; screenshot = undefined; imageUri = ""; selectItems([]); fatal = false;
         cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); renderComments(); layer.batchDraw();
         el("empty").hidden = false; el("filename").textContent = "Paste an image to start editing";
@@ -979,8 +1036,12 @@ window.addEventListener("message", async event => {
       if (message.ack === undefined || !same) render();
       if (!same || addedBackground) fit();
       if (referenceReady) finishReference(true);
+      if (message.ack === undefined || message.ack === revision) saveStatus(scratchDraft || message.ack === undefined ? "saved" : "unsaved");
     } catch (error) { finishReference(); fatal = true; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
+  } else if (message?.type === "saved") {
+    saveStatus("saved");
   } else if (message?.type === "error") {
+    if (el("save-status").dataset.state === "saving") saveStatus("error");
     finishReference(); fatal = Boolean(message.fatal); exporting = false;
     el<HTMLButtonElement>("export").disabled = fatal || !screenshot;
     toast(String(message.message));
@@ -1105,7 +1166,7 @@ for (const id of ["popover-comment", "comment", "display-text"]) {
   field.addEventListener("keydown", event => {
     if (event.key !== "Enter" || event.shiftKey || composing || event.isComposing || event.keyCode === 229) return;
     event.preventDefault(); event.stopPropagation();
-    flushFields(); closePopover(); canvas.focus();
+    flushFields(); closePopover(); if (tool !== "select") setTool("select"); canvas.focus();
   });
 }
 el("comment-popover").addEventListener("keydown", event => {
@@ -1119,14 +1180,19 @@ for (const [buttonId, fieldId] of [["add-reference", "comment"], ["popover-add-r
   el(buttonId).addEventListener("mousedown", event => event.preventDefault());
   el(buttonId).addEventListener("click", () => {
     referencePicker = referenceTarget(fieldId); flushFields();
-    if (referencePicker) el<HTMLInputElement>("reference-file").click();
+    if (referencePicker) { el<HTMLDialogElement>("reference-dialog").showModal(); el("reference-dropzone").focus(); }
   });
 }
-el("reference-file").addEventListener("cancel", () => { referencePicker = undefined; });
+el("reference-file-open").addEventListener("click", () => el<HTMLInputElement>("reference-file").click());
+el("reference-dialog-close").addEventListener("click", () => el<HTMLDialogElement>("reference-dialog").close());
+el("reference-dialog").addEventListener("close", () => {
+  const target = referencePicker; referencePicker = undefined;
+  if (target) el(target.fieldId).focus();
+});
 el("reference-file").addEventListener("change", () => {
   const input = el<HTMLInputElement>("reference-file"), file = input.files?.[0], target = referencePicker;
-  referencePicker = undefined; input.value = "";
-  if (file && target) void insertImage(file, "reference", target);
+  input.value = "";
+  if (file && target) addReferenceFile(file, target);
 });
 el("reference-preview-close").addEventListener("click", () => el<HTMLDialogElement>("reference-preview").close());
 el("add-comment").addEventListener("click", () => { flushFields(); addItem("comment", { x: 0, y: 0, width: 1, height: 1 }); });
@@ -1179,7 +1245,12 @@ el("sketch").addEventListener("pointercancel", () => endStroke(false));
 el("sketch").addEventListener("lostpointercapture", () => endStroke(false));
 el("sketch-clear").addEventListener("click", () => { const item = selected(); if (item?.kind === "stamp") { item.strokes = []; commit(); } });
 el("components").addEventListener("click", () => openLibrary());
-el("add-motion").addEventListener("click", () => openLibrary("motion"));
+el("add-motion").addEventListener("click", () => openLibrary("components", selectedId));
+el("popover-add-library").addEventListener("mousedown", event => event.preventDefault());
+el("popover-add-library").addEventListener("click", () => { const id = popoverId; if (id) { setTool("select"); selectItems([id]); render(); openLibrary("components", id); } });
+el("change-component").addEventListener("click", () => openLibrary("components", selectedId));
+el("remove-component").addEventListener("click", () => { flushFields(); const item = selected(); if (item) { delete item.component; commit(); } });
+el("change-motion").addEventListener("click", () => openLibrary("motion", selectedId));
 el("remove-motion").addEventListener("click", () => { flushFields(); const item = selected(); if (item) { delete item.motion; commit(); } });
 for (const mode of ["components", "motion"] as const) {
   const tab = el(`tab-${mode}`);
@@ -1211,7 +1282,7 @@ el("stamp").addEventListener("change", () => { const item = selected(); if (item
 /** Preserve native text-field shortcuts while supporting object movement and document history. */
 window.addEventListener("keydown", event => {
   if (referencePending) { event.preventDefault(); return; }
-  if (event.isComposing || el<HTMLDialogElement>("reference-preview").open || el<HTMLDialogElement>("library").open || el<HTMLDialogElement>("settings").open || el<HTMLDialogElement>("image-dialog").open) return;
+  if (event.isComposing || el<HTMLDialogElement>("reference-preview").open || el<HTMLDialogElement>("library").open || el<HTMLDialogElement>("settings").open || el<HTMLDialogElement>("image-dialog").open || el<HTMLDialogElement>("reference-dialog").open) return;
   const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement;
   const modifier = event.metaKey || event.ctrlKey;
   if (modifier && selected()?.kind === "text" && ["+", "=", "-", "_"].includes(event.key)) {
@@ -1222,7 +1293,7 @@ window.addEventListener("keydown", event => {
   if (modifier && event.key.toLowerCase() === "z") { event.preventDefault(); flushFields(); host.postMessage({ type: event.shiftKey ? "redo" : "undo" }); return; }
   if (modifier) return;
   if (event.code === "Space") {
-    event.preventDefault(); space = true; showSelection();
+    event.preventDefault(); space = true; renderComments(); showSelection();
     scene.getChildren().forEach(node => node.draggable(false)); canvas.style.cursor = "grab"; return;
   }
   if (event.key === "Escape") { cancelGesture(); selectItems([]); setTool("select"); return; }

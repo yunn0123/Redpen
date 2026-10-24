@@ -107,7 +107,9 @@ const lucidePaths = {
 
 /** Map editor actions to the same locally bundled Lucide artwork used by the canvas. */
 export const toolbarIcons: Record<string, string> = {
-  image: lucidePaths["image-plus"],
+  copy: lucidePaths["copy"], check: lucidePaths["check"], saved: lucidePaths["circle-check"],
+  saving: lucidePaths["loader-circle"], save: lucidePaths["save"], edit: lucidePaths["pencil"],
+  image: lucidePaths["image-plus"], comment: lucidePaths["message-square-plus"],
   sidebar: lucidePaths["panel-right"],
   collapse: lucidePaths["chevron-down"],
   settings: lucidePaths["settings"],
