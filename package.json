@@ -3,7 +3,7 @@
   "displayName": "redpen \u2014 UI Markup for AI",
   "icon": "docs/images/redpen-logo.png",
   "description": "Annotate screenshots, sketch UI changes, and export clear instructions for your coding agent.",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "publisher": "yunn030123",
   "license": "MIT",
   "repository": {
@@ -17,7 +17,9 @@
     "Visualization"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false

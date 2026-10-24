@@ -2,6 +2,7 @@
 import { exportSvg, readRedpenSvg } from "./svg";
 import { appendIgnoreRule, exportedIgnoreTarget } from "./gitignore";
 import * as vscode from "vscode";
+import { trackCanvasSession } from "./session";
 import { toolbarOrder } from "./toolbar";
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
@@ -77,10 +78,12 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (error) { report(error); }
     }),
   );
+  trackCanvasSession(context, provider.resolvedCanvases);
 }
 
 /** Keep all filesystem operations in the extension host instead of granting the canvas broad access. */
 class RedpenEditor implements vscode.CustomTextEditorProvider {
+  readonly resolvedCanvases = new Set<string>();
   private readonly canvasTitles = new Map<string, string>();
 
   /** Retain the extension directory for scoped script and stylesheet URLs. */
@@ -193,6 +196,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
     const webview = panel.webview;
     const key = document.uri.toString();
+    this.resolvedCanvases.add(key);
     if (!this.canvasTitles.has(key)) this.canvasTitles.set(key, `redpen Canvas ${this.canvasTitles.size + 1}`);
     panel.title = this.canvasTitles.get(key)!;
     panel.iconPath = vscode.Uri.joinPath(this.extensionUri, "docs", "images", "redpen-logo.png");
@@ -376,7 +380,7 @@ class RedpenEditor implements vscode.CustomTextEditorProvider {
         if (message?.type === "edit") await sendState();
       });
     }));
-    panel.onDidDispose(() => { disposed = true; disposables.forEach(disposable => disposable.dispose()); });
+    panel.onDidDispose(() => { this.resolvedCanvases.delete(key); disposed = true; disposables.forEach(disposable => disposable.dispose()); });
     webview.html = this.html(webview);
   }
 

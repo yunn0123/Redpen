@@ -1,4 +1,3 @@
-<!-- Purpose: introduce redpen with a short workflow and real editor examples. -->
 [English](README.md) | [繁體中文](README.zh-TW.md)
 
 <img src="docs/images/redpen-logo.png" width="96" alt="redpen logo">
@@ -7,114 +6,62 @@
 
 **Mark up your AI's UI with a red pen.**
 
-Paste a screenshot into VS Code, mark what needs to change, and hand it to your coding agent.
-Lightweight and local. No account or AI API key required. Just paste and start editing.
+Paste screenshots, sketch changes, and export an SVG for your coding agent.
+Lightweight, offline, and local. No account, API key, folder, or manual save required to start.
 
 ## Quick start
 
-1. In VS Code, press **Shift+Command+P** (macOS) or **Shift+Ctrl+P** (Windows/Linux).
-2. Type **`redpen`**, select **redpen: Open Canvas**, and press **Enter**.
-3. Paste a screenshot with **Command+V / Ctrl+V** and start marking it up.
+1. Install [redpen from the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yunn030123.redpen-ui-markup).
+2. Press **Shift+Command+P** (macOS) or **Ctrl+Shift+P** (Windows/Linux), type `redpen`, and choose **redpen: Open Canvas**.
+3. Paste or drop a screenshot, choose **Annotate**, draw a region, and type your request.
+4. Click **Export**, save the SVG, and use **Copy handoff prompt** to pass it to your agent. Attach the SVG if the agent cannot access its path.
 
-![Paste a screenshot, select a region, type a request, and hand it to an agent](docs/images/workflow.gif)
+![Paste a screenshot, annotate it, and hand it to an agent](docs/images/workflow.gif)
 
-*English demo with the real canvas; the final agent handoff is illustrated.*
+*The demo uses the real editor; the final agent handoff is illustrated.*
 
-## Updates
+## VS Code commands & shortcuts
 
-### 0.2.13
+Open the Command Palette with **⇧⌘P / Ctrl+Shift+P** and search for `redpen`.
 
-- New objects are selected immediately for moving and resizing. Draw on empty canvas to continue with the same creation tool; choose Select explicitly for ordinary selection. Enter finishes input without interrupting Chinese IME composition.
-- Request actions use compact icons with tooltips. Attach, change, or remove component types and motion recipes on existing requests; reference images can be pasted into request fields or pasted/dropped into the attachment dialog.
-- Drop image files onto the canvas to add fixed backgrounds, or into New image to add movable image objects. Drawing across comment markers no longer interrupts a gesture.
-- Saving status appears beside the Requests heading, notifications are centered at the bottom, and canvas instructions sit behind images. Settings adds section dividers and a copy icon with checkmark feedback.
+| Command | Action |
+|---|---|
+| **redpen: Open Canvas** | Start a new canvas. Also available when right-clicking an image in Explorer. |
+| **redpen: Open Recent Canvas** | Continue a locally saved draft in the current workspace/window. |
+| **redpen: Delete Saved Canvases** | Select drafts to permanently delete after closing canvas tabs and confirming. Exported SVGs are kept. |
+| **redpen: Show Getting Started** | Open this guide inside VS Code. |
 
-### 0.2.12
+| Shortcut | Action |
+|---|---|
+| **V / H / N** | Select / Pan / Annotate |
+| **M / C / A / T / I / R** | Cover / Copy region / Arrow / Text / Icon / Outline |
+| **Space+drag / ⌘ or Ctrl+scroll / 0** | Pan / Zoom / Fit to view |
+| **⌘ or Ctrl+Z / ⌘ or Ctrl+Shift+Z** | Undo / Redo |
+| **Enter / Shift+Enter** | Finish input / New line; Chinese IME confirmation stays in the field. |
+| **Delete / Backspace** | Delete selected objects. |
 
-- Reopen locally saved drafts with **redpen: Open Recent Canvas** in the Command Palette. Select drafts to permanently delete with **redpen: Delete Saved Canvases**; confirmation is required, shared images are retained, and exported SVG files are unaffected.
-- Large SVG exports now reduce their default display size while preserving all content, original images, coordinates, and editable data. Removed backgrounds no longer leave unnecessary empty space back to the canvas origin.
-- Update the extension directly without clearing its storage to retain local drafts. Reopen the same workspace/window to find its saved canvases.
+## Features
 
-### 0.2.11
+| Feature | What it does |
+|---|---|
+| **Annotate & Requests** | Add region or general requests. Drag comment popups out of the way while typing. |
+| **Create & adjust** | New objects are selected for moving/resizing; draw on empty canvas to repeat the tool. Choose Select explicitly for normal selection and multi-select. |
+| **Cover & Copy region** | Mask an area or copy part of a screenshot to sketch a new layout. |
+| **Arrow, Text & Outline** | Point out changes, add adjustable text, or highlight regions. |
+| **Icons** | Choose from 82 offline Lucide icons or sketch your own. |
+| **Components & motions** | Attach component-type notes and 18 motion recipes with interactive previews and readable agent instructions. |
+| **Multiple screenshots** | Paste/drop fixed backgrounds side by side with gaps. Notes can span images; Select+double-click replaces/deletes a background without removing notes. The last background is kept. |
+| **New image** | Add movable image objects with their own requests; resize, rotate, or flip them. |
+| **Reference images** | Paste into a request or use its image icon to paste/drop attachments. Up to 8 images per request, linked with `[img1]` markers. |
+| **Toolbars** | Drag buttons to reorder, or use Alt+Arrow keys. Collapse drawing tools; preferences are remembered. |
+| **SVG export & import** | One file contains original, modified, annotations, reference images, and editable draft data. Import it to continue editing. |
+| **Local drafts** | Autosave locally; remember open canvases for update recovery. Closed drafts stay closed, and unsaved tabs are not forcibly replaced. |
+| **Handoff & Git** | Copy the handoff prompt from export notifications or Settings. Exporting into a Git repo can add the SVG to `.gitignore` with your approval. |
 
-- Drag a canvas comment popup by its heading to move it out of the way while typing. Text focus, caret position, and IME composition stay intact.
-- The popup stays within the canvas and keeps its position until closed; reopening restores its default position. Focus the heading and use arrow keys to move it with the keyboard.
+## Update — 0.2.14
 
-### 0.2.10
-
-- Paste multiple fixed background screenshots into one canvas, arranged to the right with 64px gaps. Notes and arrows can span screens. Use Select and double-click a background to replace or delete it; annotations and other backgrounds stay in place, and the last background cannot be deleted. New image still creates movable image objects.
-- Add reference images to requests by pasting into the text field or choosing a file. Stable `[img1]` markers link to previews; references are embedded in the exported SVG and retained on reimport.
-- Added 18 offline motion recipes, including carousels, horizontal parallax, pinned galleries, card stacks, marquees and shared-layout interactions. Interactive previews accompany readable specifications for agents.
-- Drag toolbar buttons within their groups to reorder them, with an insertion indicator and saved preferences. Alt+Arrow keys and a reset option are also available.
-
-### 0.2.9
-
-- Tools wrap in narrow editor splits so every drawing tool remains reachable.
-- Added a visible Export label and clearer Requests panel spacing.
-- Updated editing hints for Enter and Shift+Enter; selection and button colors follow the VS Code theme.
-
-### 0.2.8
-
-- New objects focus their request field automatically; text objects focus their text field. Enter finishes editing, Shift+Enter adds a line, and Chinese IME confirmation keeps editing active.
-- Fixed the canvas stealing keyboard focus after adding text or icons. Drawing tools remain active for repeated use.
-- Exporting an SVG into a local Git repository offers to add only that file to `.gitignore`, with your approval. Already ignored or tracked files are skipped.
-- Added Command Palette quick-start steps above the workflow demo.
-
-### 0.2.7
-
-- Drawing tools stay active after use, so you can add consecutive annotations or shapes. Switch to Select to move objects.
-- Expanded the offline Lucide icon catalog from 20 to 82 icons, including navigation, files, communication, shopping, and devices. Icons remain editable and export to SVG.
-
-## Install in VS Code
-
-Open [redpen on the VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=yunn030123.redpen-ui-markup), click **Install**, and open it in VS Code.
-You can also open Extensions (**⌘⇧X / Ctrl+Shift+X**) in VS Code and search for `yunn030123.redpen-ui-markup`.
-
-## Open a canvas in VS Code
-
-**You can edit in an empty VS Code window — no folder or project needs to be open.** No Node.js setup, build commands, or manual VSIX installation is required.
-
-1. **Open a canvas:** in VS Code, press **⌘⇧P** (macOS) or **Ctrl+Shift+P** (Windows/Linux) to open the Command Palette. Search for **redpen: Open Canvas** and press Enter. A **redpen Canvas** tab opens, ready to edit; no need to name or save a draft first.
-2. **Paste a screenshot:** click the canvas and press **⌘V / Ctrl+V**, or click **Import** to choose a PNG, JPEG, or WebP. You can also right-click an image in Explorer → **redpen: Open Canvas**.
-3. **Describe a change:** select **Annotate**, drag a box around the area, and type your request in the floating comment. Use covers, arrows, text, icons, and copied regions to sketch the result.
-4. **Export:** click **Export for Agent**, choose a location, and save one SVG.
-5. **Hand it to your agent:** click **Copy handoff prompt** in the VS Code success notification, then paste into your agent chat. The prompt includes the saved SVG path. If your agent cannot access that path, attach the SVG too.
-
-On first use, a notification offers **Open guide**. Reopen this guide anytime with **redpen: Show Getting Started**.
-
-## One file, three layers
-
-Each SVG contains **original**, **modified**, and **annotations** layers, with numbered requests beside the image.
-Import it back into redpen to keep editing. The export expands to fit your objects, with transparent space outside the screenshot.
-
-![An exported mockup with numbered requests beside the image](docs/images/example.png)
-
-## Quick tips
-
-- **Create, then adjust:** new objects are automatically selected for moving/resizing and focus their request field. Draw on empty canvas to use the same creation tool again; choose Select explicitly for ordinary selection. Enter finishes input; Shift+Enter adds a line, and Chinese IME confirmation stays in the field. Drop image files onto the canvas to add backgrounds.
-
-- **Motion recipes:** open **Components & motions → Motion**, play a preview, then add the effect to the selected object or draw a new region. 18 offline presets cover interactive components (carousels, swipe stacks, marquees, tabs and expanding cards), scroll-linked effects (horizontal parallax, pinned galleries, card stacks, image reveals and hero zoom), and basic effects. Previews support navigation, dragging or a scroll-progress slider. Exports describe triggers, bounds, timing, loop behavior and reduced-motion fallbacks; no GIF or animation library is required for the handoff.
-- **Your tool order:** drag buttons within either toolbar group; an insertion line follows the drop position. You can also focus a button and use **Alt+Arrow** keys. The order is remembered; reset it in Settings.
-- **Reference images:** paste an image into a request field or use the **Add reference image** icon below it to open a paste/drop area (file selection is also available). The text gets an `[img1]` marker, with a thumbnail you can preview or remove. Up to 8 images per request; references are embedded beside their request in the exported SVG and retained when reimported.
-- **Floating controls:** drawing tools sit at the top left; undo, import, export, and the Requests toggle sit at the top right. Requests starts collapsed and opens as a floating panel attached to the right toolbar.
-- **Compact tools:** toggle **Collapse drawing tools** to keep only the active tool visible; hover or focus the toolbar to expand it. This preference is remembered. Zoom controls sit vertically at the bottom left.
-- **Sketch an icon:** the gray placeholder disappears after the first stroke, including in exported SVGs. Clear strokes to restore it.
-- **Comments on the canvas:** hover a numbered comment icon to read a request; click the text field to edit. While typing, the comment stays open. Press Escape or leave the field to apply changes; **More options** opens the sidebar.
-
-- **Multiple screens:** paste screenshots onto the canvas to add fixed backgrounds, arranged to the right with a 64px gap. Notes and arrows may span screens. Use Select and double-click a background to replace or delete it; annotations and other backgrounds stay in place. The final background cannot be deleted. **New image** still adds a movable image object with its own request.
-- **Select and edit:** drag with Select to select multiple objects; ⌘/Ctrl-click to toggle selection. Drag arrow endpoints to change direction or length. Press Delete to remove objects.
-- **Use the sidebar:** rotate or flip images, or click **＋** beside Requests to add a general request.
-- **Undo / redo:** ⌘/Ctrl Z / ⌘/Ctrl Shift Z. New canvases autosave locally.
-
-## Notifications & saved work
-
-- Use **redpen: Open Recent Canvas** in the Command Palette to reopen a locally saved draft in the current workspace/window. **redpen: Delete Saved Canvases** lets you select drafts to permanently delete after closing canvas tabs and confirming. Unused images are cleaned up; exported SVG files are kept.
-
-- Exporting into a local Git repository offers to add that SVG to `.gitignore`. The file changes only if you choose **Add to .gitignore**; already ignored or tracked SVGs are skipped.
-- Notifications start with **redpen:**. Export success offers **Copy handoff prompt**; errors explain what to fix. Canceling the save dialog does not export a file.
-- Missed the export notification? Use the **Copy handoff prompt** icon in the canvas Settings heading. You can also edit the prompt there; `{svgPath}` inserts the exported file path.
-- New canvases autosave locally. The internal `.redpen.json` file is a draft; share the exported SVG with your agent.
-- Use **Import** to reopen a redpen SVG and continue editing. If an older draft opens as JSON, use **Reopen Editor With… → redpen Canvas**.
+- Remember open drafts and editor groups; reconnect stale canvas tabs and restore missing open drafts after a version update.
+- Show “Restoring canvas…” while loading, instead of a misleading empty canvas. Preserve normally closed drafts and unsaved tabs.
 
 ## License
 

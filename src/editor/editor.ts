@@ -31,7 +31,8 @@ app.innerHTML = `
   <main><section class="workspace" aria-label="Screenshot canvas">
     <div class="canvas-hint" id="hint">Draw a region and describe what you want to change</div>
     <div id="canvas" tabindex="0" role="application" aria-label="Screenshot editor. Use tools to select regions, arrow keys to move selected objects, and Delete to remove them."></div>
-    <div id="empty"><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Drop an image here or press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
+    <div id="restoring" role="status">Restoring canvas…</div>
+    <div id="empty" hidden><span class="empty-icon">${icon("crop")}</span><h2>Paste your screenshot</h2><p>Drop an image here or press ⌘ V / Ctrl V to paste.<br>Start editing right away. Export when you are ready.</p><button id="empty-import">Or choose an image file</button></div>
     <div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">${icon("minus")}</button><span id="zoom" aria-live="polite">100%</span><button id="zoom-in" aria-label="Zoom in">${icon("plus")}</button><span class="divider"></span><button id="fit" title="Fit to view (0)" aria-label="Fit to view">${icon("fit")}</button></div>
   <div id="comment-markers" aria-label="Canvas comments"></div>
     <section id="comment-popover" role="dialog" aria-modal="false" aria-labelledby="popover-title" hidden>
@@ -997,6 +998,7 @@ window.addEventListener("message", async event => {
       const next = parseProject(message.project);
       scratchDraft = Boolean(message.scratch);
       if (!next.image) {
+        el("restoring").hidden = true;
         saveStatus("saved");
         assets.clear(); project = next; screenshot = undefined; imageUri = ""; selectItems([]); fatal = false;
         cancelGesture(); showSelection(); scene.destroyChildren(); renderInspector(); renderComments(); layer.batchDraw();
@@ -1030,6 +1032,7 @@ window.addEventListener("message", async event => {
       const referenceReady = referencePending && (next.items.find(item => item.id === referencePending!.itemId)?.references?.length ?? 0) > referencePending.count;
       selectedIds = new Set([...selectedIds].filter(id => project!.items.some(item => item.id === id)));
       selectedId = selectedIds.size === 1 ? [...selectedIds][0] : undefined;
+      el("restoring").hidden = true;
       el("empty").hidden = true; el("filename").textContent = `${screenshot!.naturalWidth} × ${screenshot!.naturalHeight} · ${message.scratch ? "Autosaved" : "Local draft"}`;
       el<HTMLButtonElement>("export").disabled = exporting;
       // An acknowledgement confirms the optimistic edit; rebuilding here could interrupt the next gesture.
@@ -1037,12 +1040,13 @@ window.addEventListener("message", async event => {
       if (!same || addedBackground) fit();
       if (referenceReady) finishReference(true);
       if (message.ack === undefined || message.ack === revision) saveStatus(scratchDraft || message.ack === undefined ? "saved" : "unsaved");
-    } catch (error) { finishReference(); fatal = true; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
+    } catch (error) { finishReference(); fatal = true; el("restoring").textContent = "Could not restore this canvas. Your saved draft has been kept."; el("restoring").hidden = false; toast(`Could not load the screenshot: ${error instanceof Error ? error.message : String(error)}`); el<HTMLButtonElement>("export").disabled = true; }
   } else if (message?.type === "saved") {
     saveStatus("saved");
   } else if (message?.type === "error") {
     if (el("save-status").dataset.state === "saving") saveStatus("error");
     finishReference(); fatal = Boolean(message.fatal); exporting = false;
+    if (fatal) { el("restoring").textContent = "Could not restore this canvas. Your saved draft has been kept."; el("restoring").hidden = false; }
     el<HTMLButtonElement>("export").disabled = fatal || !screenshot;
     toast(String(message.message));
   } else if (message?.type === "exported") {

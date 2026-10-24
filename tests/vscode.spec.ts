@@ -52,7 +52,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     await expect(window.getByText("redpen: Paste a screenshot, annotate changes, then export an SVG for your agent.", { exact: true })).toBeVisible();
     await window.getByRole("button", { name: "Open guide", exact: true }).click();
     await expect.poll(async () => {
-      for (const candidate of window.frames()) if (await candidate.getByRole("heading", { name: "Open a canvas in VS Code", exact: true }).count()) return true;
+      for (const candidate of window.frames()) if (await candidate.getByRole("heading", { name: "Quick start", exact: true }).count()) return true;
       return false;
     }).toBeTruthy();
     await window.locator(".tab").filter({ hasText: "redpen Canvas 1" }).first().click();
@@ -88,7 +88,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     }, target);
     await frame!.getByRole("button", { name: "Settings", exact: true }).click();
     await frame!.locator("#handoff-prompt").fill("請依三層修改：{svgPath}");
-    await frame!.getByRole("button", { name: "Save settings", exact: true }).click();
+    await frame!.getByRole("button", { name: "Save", exact: true }).click();
     await expect(frame!.getByRole("status")).toHaveText("redpen: Settings saved.");
     await frame!.getByRole("button", { name: "Close settings", exact: true }).click();
     await frame!.getByRole("button", { name: "Export for Agent", exact: true }).click();
@@ -134,7 +134,7 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     const bounds = (await frame!.locator("#canvas").boundingBox())!;
     const scale = Math.max(.02, Math.min(1, (bounds.width - 64) / 800, (bounds.height - 96) / 600));
     const origin = { x: bounds.x + (bounds.width - 800 * scale) / 2, y: bounds.y + (bounds.height - 600 * scale) / 2 };
-    await frame!.getByRole("button", { name: "Components", exact: true }).click();
+    await frame!.locator("#components").click();
     await frame!.getByRole("searchbox").fill("Tooltip");
     await frame!.locator(".library-card").click();
     await window.mouse.move(origin.x + 100 * scale, origin.y + 100 * scale); await window.mouse.down();
@@ -227,6 +227,45 @@ test("VS Code opens a draft, saves comments, undoes changes, and writes an agent
     for (const name of await readdir(logs, { recursive: true })) {
       if (name.endsWith("exthost.log") || name.endsWith("window.log")) console.log(name, (await readFile(join(logs, name), "utf8")).slice(-7000));
     }
+    throw error;
+  } finally { await app.close(); await rm(temporary, { recursive: true, force: true }); }
+});
+
+test("open canvas reconnects after extension host restart without reopening a draft manually", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "redpen-restart-"));
+  const workspace = join(temporary, "workspace"); await mkdir(workspace);
+  const file = join(workspace, "restore.redpen.json");
+  await writeFile(join(workspace, "screen.png"), screenshot());
+  await writeFile(file, JSON.stringify({ version: 1, image: "screen.png", items: [{ id: "restore-note", kind: "note", x: 100, y: 100, width: 220, height: 120, color: "#f35e5e", text: "", comment: "更新前的需求" }] }));
+  const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== "ELECTRON_RUN_AS_NODE"));
+  const app = await electron.launch({ executablePath: process.env.VSCODE_EXECUTABLE ?? "/Applications/Visual Studio Code.app/Contents/MacOS/Code", args: ["--no-sandbox", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", `--user-data-dir=${join(temporary, "profile")}`, `--extensions-dir=${join(temporary, "extensions")}`, `--extensionDevelopmentPath=${resolve(".")}`, workspace, file], env, timeout: 30_000 });
+  try {
+    const window = await app.firstWindow();
+    const command = async (name: string) => { await window.keyboard.press("F1"); await window.locator(".quick-input-widget input").fill(`>${name}`); await window.keyboard.press("Enter"); };
+    const findFrame = async () => {
+      for (const frame of window.frames()) { try { if (await frame.locator("#filename").count()) return frame; } catch {} }
+    };
+    await window.locator(".monaco-editor").first().click();
+    await command("View: Reopen Editor With...");
+    await window.getByText("redpen Canvas", { exact: true }).first().click();
+    await expect.poll(async () => Boolean(await findFrame()), { timeout: 25_000 }).toBe(true);
+    let frame = (await findFrame())!;
+    await expect(frame.locator("#filename")).toContainText("800 × 600");
+    await command("Developer: Restart Extension Host");
+    // Re-render the webview after host restart, just as switching back to an open tab does.
+    await command("File: New Untitled Text File");
+    await window.locator(".tab").filter({ hasText: "redpen Canvas" }).first().click();
+    await expect(async () => {
+      frame = (await findFrame())!; expect(frame).toBeTruthy();
+      await expect(frame.locator("#filename")).toContainText("800 × 600");
+    }).toPass({ timeout: 20_000 });
+    await frame.locator("#toggle-sidebar").click(); await frame.locator(".item-card").first().click();
+    await expect(frame.locator("#comment")).toHaveValue("更新前的需求");
+    await frame.locator("#comment").fill("重啟後仍可繼續編輯"); await frame.locator("#comment").press("Enter");
+    await frame.locator("#canvas").focus(); await window.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+    await expect(async () => { expect(JSON.parse(await readFile(file, "utf8")).items[0].comment).toBe("重啟後仍可繼續編輯"); }).toPass({ timeout: 5000 });
+  } catch (error) {
+    const window = await app.firstWindow(); await window.screenshot({ path: "test-results-native/restart-failure.png" });
     throw error;
   } finally { await app.close(); await rm(temporary, { recursive: true, force: true }); }
 });

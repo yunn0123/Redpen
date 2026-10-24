@@ -33,7 +33,7 @@ async function host(files: Record<string, string>, confirm = true, tabs: unknown
       delete: async (uri: Uri) => { const name = uri.path.split("/").pop()!; deleted.push(name); data.delete(name); },
     } },
     window: {
-      tabGroups: { all: [{ tabs }] }, registerCustomEditorProvider: () => ({}),
+      tabGroups: { all: [{ tabs }], onDidChangeTabs: () => ({}), onDidChangeTabGroups: () => ({}) }, registerCustomEditorProvider: () => ({}),
       showQuickPick: async (items: any[], options: any) => options.canPickMany ? items.filter(item => item.label.includes("new")) : items[0],
       showWarningMessage: async () => confirm ? "Delete permanently" : undefined,
       showInformationMessage: (message: string) => notices.push(message),
@@ -41,8 +41,10 @@ async function host(files: Record<string, string>, confirm = true, tabs: unknown
     },
   };
   const module: { exports: any } = { exports: {} };
-  runInNewContext((await bundle).outputFiles[0].text, { module, exports: module.exports, require: (name: string) => name === "vscode" ? mock : require(name), TextEncoder, TextDecoder, Buffer });
-  module.exports.activate({ extensionUri: new Uri("/extension"), globalStorageUri: new Uri("/storage"), globalState: {}, subscriptions: [] });
+  runInNewContext((await bundle).outputFiles[0].text, { module, exports: module.exports, require: (name: string) => name === "vscode" ? mock : require(name), TextEncoder, TextDecoder, Buffer, setTimeout, clearTimeout });
+  const subscriptions: any[] = [];
+  module.exports.activate({ extension: { packageJSON: { version: "test" } }, workspaceState: { get: () => undefined, update: async () => {} }, extensionUri: new Uri("/extension"), globalStorageUri: new Uri("/storage"), globalState: {}, subscriptions });
+  subscriptions.forEach(item => item.dispose?.());
   return { commands, executed, deleted, notices, TabInputCustom, Uri };
 }
 const draft = (image: string) => JSON.stringify({ version: 1, image, items: [] });
