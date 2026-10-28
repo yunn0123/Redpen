@@ -27,7 +27,7 @@ Open the Command Palette with **⇧⌘P / Ctrl+Shift+P** and search for `redpen`
 | Command | Action |
 |---|---|
 | **redpen: Open Canvas** | Start a new canvas. Also available when right-clicking an image in Explorer. |
-| **redpen: Open Recent Canvas** | Continue a locally saved draft in the current workspace/window. |
+| **redpen: Open Recent Canvas** | Browse all local cached drafts, newest saved first; preview a background with the row’s preview button. |
 | **redpen: Delete Saved Canvases** | Select drafts to permanently delete after closing canvas tabs and confirming. Exported SVGs are kept. |
 | **redpen: Show Getting Started** | Open this guide inside VS Code. |
 
@@ -55,13 +55,13 @@ Open the Command Palette with **⇧⌘P / Ctrl+Shift+P** and search for `redpen`
 | **Reference images** | Paste into a request or use its image icon to paste/drop attachments. Up to 8 images per request, linked with `[img1]` markers. |
 | **Toolbars** | Drag buttons to reorder, or use Alt+Arrow keys. Collapse drawing tools; preferences are remembered. |
 | **SVG export & import** | One file contains original, modified, annotations, reference images, and editable draft data. Import it to continue editing. |
-| **Local drafts** | Autosave locally; remember open canvases for update recovery. Closed drafts stay closed, and unsaved tabs are not forcibly replaced. |
+| **Local drafts** | Autosave to shared local storage across workspaces; remember open canvases for update recovery. Closed drafts stay closed, and unsaved tabs are not forcibly replaced. |
 | **Handoff & Git** | Copy the handoff prompt from export notifications or Settings. Exporting into a Git repo can add the SVG to `.gitignore` with your approval. |
 
-## Update — 0.2.14
+## Update — 0.2.15
 
-- Remember open drafts and editor groups; reconnect stale canvas tabs and restore missing open drafts after a version update.
-- Show “Restoring canvas…” while loading, instead of a misleading empty canvas. Preserve normally closed drafts and unsaved tabs.
+- Recent Canvas lists global and legacy workspace drafts together, sorted by last saved time. New canvases use shared global storage, whether a folder is open or not.
+- Preview a draft’s first background from the list without changing its saved time. Legacy drafts keep their original paths and autosave support; image cleanup stays scoped to each storage directory.
 
 ## License
 

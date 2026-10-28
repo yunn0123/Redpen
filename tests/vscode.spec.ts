@@ -1,7 +1,7 @@
 /** Test a real VS Code webview, document save/undo, and exported files with a disposable profile. */
 import { test, expect } from "@playwright/test";
 import { _electron as electron } from "playwright";
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, utimes, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { readRedpenSvg } from "../src/svg";
@@ -268,4 +268,58 @@ test("open canvas reconnects after extension host restart without reopening a dr
     const window = await app.firstWindow(); await window.screenshot({ path: "test-results-native/restart-failure.png" });
     throw error;
   } finally { await app.close(); await rm(temporary, { recursive: true, force: true }); }
+});
+
+
+test("Recent lists drafts across workspace caches and previews without changing saved times", async () => {
+  const temporary = await mkdtemp(join(tmpdir(), "redpen-recent-"));
+  const workspace = join(temporary, "workspace"); await mkdir(workspace);
+  const profile = join(temporary, "profile");
+  const global = join(profile, "User", "globalStorage", "yunn030123.redpen-ui-markup", "canvases");
+  const legacy = join(profile, "User", "workspaceStorage", "old-workspace", "yunn030123.redpen-ui-markup", "canvases");
+  for (const [directory, name] of [[global, "canvas-global.redpen.json"], [legacy, "canvas-legacy.redpen.json"]]) {
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "screen.png"), screenshot());
+    await writeFile(join(directory, name), JSON.stringify({ version: 1, image: "screen.png", items: [] }));
+  }
+  await utimes(join(global, "canvas-global.redpen.json"), new Date(1000), new Date(1000));
+  const legacySavedTime = (await stat(join(legacy, "canvas-legacy.redpen.json"))).mtimeMs;
+  const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[0] !== "ELECTRON_RUN_AS_NODE"));
+  const app = await electron.launch({ executablePath: process.env.VSCODE_EXECUTABLE ?? "/Applications/Visual Studio Code.app/Contents/MacOS/Code", args: ["--no-sandbox", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes", `--user-data-dir=${profile}`, `--extensions-dir=${join(temporary, "extensions")}`, `--extensionDevelopmentPath=${resolve(".")}`, workspace], env, timeout: 30_000 });
+  try {
+    const window = await app.firstWindow();
+    await window.locator(".monaco-workbench").waitFor();
+    await window.keyboard.press("F1"); await window.locator(".quick-input-widget input").fill(">redpen: Open Recent Canvas"); await window.keyboard.press("Enter");
+    const rows = window.locator(".quick-input-list .monaco-list-row:visible");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText("canvas-legacy.redpen.json");
+    await expect(rows.nth(1)).toContainText("canvas-global.redpen.json");
+    await rows.first().hover();
+    await rows.first().locator(".codicon-open-preview").click();
+    await expect(window.locator(".tab").filter({ hasText: "screen.png" })).toBeVisible();
+    await expect.poll(async () => {
+      for (const frame of window.frames()) {
+        try { if (await frame.evaluate(() => [...document.images].some(image => image.naturalWidth === 800 && image.naturalHeight === 600))) return true; } catch {}
+      }
+      return false;
+    }, { timeout: 15_000 }).toBe(true);
+    await expect(rows).toHaveCount(2);
+    expect((await stat(join(legacy, "canvas-legacy.redpen.json"))).mtimeMs).toBe(legacySavedTime);
+    await window.screenshot({ path: "test-results-native/recent-canvases-preview.png" });
+    await window.keyboard.press("Enter");
+    let frame = window.frames()[0];
+    await expect.poll(async () => {
+      for (const candidate of window.frames()) { try { if (await candidate.locator("#filename").count()) { frame = candidate; return true; } } catch {} }
+      return false;
+    }, { timeout: 20_000 }).toBe(true);
+    await expect(frame.locator("#filename")).toContainText("800 × 600 · Autosaved");
+    expect(JSON.parse(await readFile(join(legacy, "canvas-legacy.redpen.json"), "utf8")).image).toBe("screen.png");
+    await frame.locator("#toggle-sidebar").click(); await frame.locator("#add-comment").click();
+    await frame.locator("#comment").fill("從另一個工作區繼續編輯"); await frame.locator("#comment").press("Enter");
+    await expect(async () => { expect(JSON.parse(await readFile(join(legacy, "canvas-legacy.redpen.json"), "utf8")).items[0].comment).toBe("從另一個工作區繼續編輯"); }).toPass({ timeout: 5000 });
+  } catch (error) {
+    const window = await app.firstWindow(); await window.screenshot({ path: "test-results-native/recent-failure.png" });
+    throw error;
+  }
+  finally { await app.close(); await rm(temporary, { recursive: true, force: true }); }
 });
